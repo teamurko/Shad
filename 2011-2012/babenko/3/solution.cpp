@@ -1,3 +1,4 @@
+#include <list>
 #include <algorithm>
 #include <ctime>
 #include <iostream>
@@ -38,11 +39,13 @@ class Triangle
         return id_ % dividend;
     }
 
-    size_t id() const {
+    size_t id() const
+    {
         return id_;
     }
 
-    size_t hash() const {
+    size_t hash() const
+    {
         return id_;
     }
 
@@ -73,6 +76,21 @@ class Triangle
 
 size_t Triangle::BASE = 1000;
 
+template <class T>
+class EqualsOne
+{
+    public:
+    explicit EqualsOne(const T& object) : object_(object) { }
+
+    bool operator()(const T& other) const
+    {
+        return other.id() == object_.id();
+    }
+
+    private:
+    const T& object_;
+};
+
 template <class Object>
 class HashTable
 {
@@ -85,19 +103,20 @@ class HashTable
     bool add(const Object& obj)
     {
         size_t index = obj.hash() % size_;
-        return table_[index].insert(obj).second;
+        if (std::find_if(table_[index].begin(),
+                         table_[index].end(),
+                         EqualsOne<Object>(obj)) ==
+                    table_[index].end()) {
+            table_[index].insert(table_[index].begin(), obj);
+            return true;
+        }
+        return false;
     }
 
     // TODO return iterator
 
     private:
-    struct Comparator {
-        bool operator()(const Object& first, const Object& second) const
-        {
-            return first.id() < second.id();
-        }
-    };
-    typedef std::set<Object, Comparator> Objects;
+    typedef std::list<Object> Objects;
     size_t size_;
     std::vector<Objects> table_;
 };
@@ -117,5 +136,5 @@ int main()
         }
     }
     std::cout << numUnique << std::endl;
-    std::cerr << clock() / CLOCKS_PER_SEC << std::endl;
+    std::cerr << static_cast<double>(clock()) / CLOCKS_PER_SEC << std::endl;
 }
