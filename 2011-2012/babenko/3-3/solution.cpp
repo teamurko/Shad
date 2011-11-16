@@ -1,4 +1,5 @@
-#include <cmath>
+#include <string>
+#include <cassert>
 #include <cstdio>
 #include <cstdlib>
 #include <ctime>
@@ -9,13 +10,12 @@
 
 typedef size_t Id;
 typedef std::vector<Id> Ids;
-typedef std::vector<std::vector<size_t> > RandomUITable;
 typedef std::vector<Ids> Graph;
 
 class DisjointSetUnion
 {
-public:
-    DisjointSetUnion(size_t size) : parent_(size)
+    public:
+    explicit DisjointSetUnion(size_t size) : parent_(size)
     {
         init();
     }
@@ -56,21 +56,36 @@ public:
 
 class PerfectHashFactory
 {
+    private:
+    typedef std::vector<int> HashGenVector;
+
     public:
     PerfectHashFactory() { }
 
-    void initialize(const std::vector<size_t>& numbers, size_t factor = 3)
+    void initialize(const std::vector<int>& numbers, const size_t factor = 3)
     {
-        numbers_ = numbers;
-        size_ = numbers.size() * factor;
+        size_t size = numbers.size() * factor;
+        pre11_.resize(1 << 16);
+        pre12_.resize(1 << 16);
+        pre21_.resize(1 << 16);
+        pre22_.resize(1 << 16);
+        buildPerfectHash(numbers, size);
+    }
+
+    bool buildPerfectHash(const std::vector<int>& numbers, size_t size)
+    {
+        size_ = size;
+        size_ = nextPrime(size_);
         graph_.resize(size_);
         visited_.resize(size_);
         vertexLabels_.resize(size_);
-        numEdges_ = numbers_.size();
+        numEdges_ = numbers.size();
 
         static const Id UNDEFINED = std::numeric_limits<Id>::max();
 
-        buildGraph();
+        if (!buildGraph(numbers)) {
+            return false;
+        }
         size_t uniqueHashValue = 0;
         for (size_t vertexIndex = 0; vertexIndex < size_; ++vertexIndex) {
             if (!visited_[vertexIndex]) {
@@ -79,48 +94,122 @@ class PerfectHashFactory
             }
         }
         clearGraph();
-        // found hashing tables h1_, h2_, and vertexLabels_
+        return true;
     }
 
-    size_t hash(size_t number) const
+    size_t hash(int number) const
     {
-        size_t hf = (vertexLabels_[hash(h1_, number)]
-                + vertexLabels_[hash(h2_, number)]);
-        if (hf >= numbers_.size()) {
-            hf -= numbers_.size();
+        size_t hf = (vertexLabels_[hash(h1_, pre11_, pre12_, number)]
+                + vertexLabels_[hash(h2_, pre21_, pre22_, number)]);
+        if (hf >= numEdges_) {
+            hf -= numEdges_;
         }
         return hf;
     }
 
     private:
+    bool isPrime(size_t number) const
+    {
+        for (size_t i = 2; i * i <= number; ++i) {
+            if (number % i == 0) {
+                return false;
+            }
+        }
+        return number > 1;
+    }
+
+    size_t nextPrime(size_t startNumber) const
+    {
+        while (!isPrime(startNumber)) {
+            ++startNumber;
+        }
+        return startNumber;
+    }
+
+    void precalc(const HashGenVector& hash,
+                HashGenVector& preOne,
+                HashGenVector& preTwo)
+    {
+        for (size_t mask = 0; mask < (1 << 16); ++mask) {
+            preOne[mask] = 0;
+            preTwo[mask] = 0;
+        }
+        for (int i = 0; i < 16; ++i) {
+            for (int mask = 0; mask < (1 << 16); ++mask) {
+                if (mask & (1 << i)) {
+                    preOne[mask] ^= hash[i];
+                }
+            }
+        }
+        /*
+        for (int mask = 0; mask < (1 << 16); ++mask) {
+            int res = 0;
+            for (int i = 0; i < 16; ++i) {
+                if (mask & (1 << i)) {
+                    res ^= hash[i];
+                }
+            }
+            assert(res == pre1[mask]);
+        }
+        */
+        for (int i = 0; i < 16; ++i) {
+            for (int mask = 0; mask < (1 << 16); ++mask) {
+                if (mask & (1 << i)) {
+                    preTwo[mask] ^= hash[i + 16];
+                }
+            }
+        }
+        /*
+        for (int mask = 0; mask < (1 << 16); ++mask) {
+            int res = 0;
+            for (int i = 0; i < 16; ++i) {
+                if (mask & (1 << i)) {
+                    res ^= hash[i + 16];
+                }
+            }
+            assert(res == pre2[mask]);
+        }
+        */
+    }
+
     // returns false iff loop is generated
-    bool buildGraph()
+    bool buildGraph(const std::vector<int>& numbers)
     {
         bool foundPerfectHash = false;
         DisjointSetUnion dsu(size_);
+        static const size_t NUM_ITERATIONS = 30000000;
+        size_t iter = 0;
         do {
             dsu.init();
-            h1_ = generateRandomUITable();
-            h2_ = generateRandomUITable();
+            h1_ = createHashGenPair();
+            precalc(h1_, pre11_, pre12_);
+            h2_ = createHashGenPair();
+            precalc(h2_, pre21_, pre22_);
             bool foundCycle = false;
-            for (size_t index = 0; index < numbers_.size(); ++index) {
-                Id vertexU = hash(h1_, numbers_[index]);
-                Id vertexV = hash(h2_, numbers_[index]);
+            for (size_t index = 0; index < numbers.size(); ++index) {
+                Id vertexU = hash(h1_, pre11_, pre12_, numbers[index]);
+                Id vertexV = hash(h2_, pre21_, pre22_, numbers[index]);
                 if (!dsu.merge(vertexU, vertexV)) {
                     foundCycle = true;
                     break;
                 }
             }
             foundPerfectHash = !foundCycle;
+            ++iter;
         }
-        while (!foundPerfectHash);
+        while (iter < NUM_ITERATIONS && !foundPerfectHash);
 
-        for (size_t index = 0; index < numbers_.size(); ++index) {
-            Id vertexU = hash(h1_, numbers_[index]);
-            Id vertexV = hash(h2_, numbers_[index]);
+        if (!foundPerfectHash) {
+            return false;
+        }
+
+        for (size_t index = 0; index < numbers.size(); ++index) {
+            Id vertexU = hash(h1_, pre11_, pre12_, numbers[index]);
+            Id vertexV = hash(h2_, pre21_, pre22_, numbers[index]);
             graph_[vertexU].push_back(vertexV);
             graph_[vertexV].push_back(vertexU);
         }
+        return true;
     }
 
     // traverses graph, fills vertexLabels_,
@@ -146,54 +235,48 @@ class PerfectHashFactory
         visited_.clear();
     }
 
-    size_t hash(const RandomUITable& hashingFunction, size_t number) const
+    size_t hash(const HashGenVector& hashGenVector,
+            const HashGenVector& preOne,
+            const HashGenVector& preTwo, int number) const
     {
-        size_t result = 0;
-        for (size_t posIndex = 0; posIndex < NUM_POSITIONS; ++posIndex) {
-            size_t intPart = number / BASE;
-            result += hashingFunction[posIndex][number - intPart * BASE];
-            number = intPart;
+        static const int LOW = (1 << 16) - 1;
+        int result = 0;
+        result ^= preOne[number & LOW];
+        result ^= preTwo[(number >> 16) & LOW];
+        result += hashGenVector.back();
+        if (result >= size_) {
+            result %= size_;
         }
-        return result % size_;
+        return result;
     }
 
-    RandomUITable generateRandomUITable()
+    HashGenVector createHashGenPair() const
     {
-        RandomUITable table(NUM_POSITIONS, std::vector<size_t>(BASE));
-        size_t p = rand() * rand() % 300 + 123;
-        for (size_t i = 0; i < BASE; ++i) {
-            table[0][i] = i;
-            if (table[0][i] >= size_) {
-                table[0][i] %= size_;
-            }
+        HashGenVector result(33);
+        for (size_t i = 0; i < 33; ++i) {
+            result[i] = random();
         }
-        for (size_t posIndex = 1; posIndex < NUM_POSITIONS; ++posIndex) {
-            for (size_t digitIndex = 0; digitIndex < BASE; ++digitIndex) {
-                table[posIndex][digitIndex] =
-                    table[posIndex - 1][digitIndex] * p;
-                if (table[posIndex][digitIndex] >= size_) {
-                    table[posIndex][digitIndex] %= size_;
-                }
-            }
-        }
-        return table;
+        return result;
+    }
+
+    int random() const
+    {
+        return (rand() << 16) + rand();
     }
 
     private:
-    static size_t NUM_POSITIONS;
-    static size_t BASE;
     size_t size_;
-    std::vector<size_t> numbers_;
     Graph graph_;
-    RandomUITable h1_;
-    RandomUITable h2_;
+    HashGenVector h1_;
+    HashGenVector h2_;
+    std::vector<int> pre11_;
+    std::vector<int> pre21_;
+    std::vector<int> pre12_;
+    std::vector<int> pre22_;
     std::vector<bool> visited_;
     Ids vertexLabels_;
     size_t numEdges_;
 };
-
-size_t PerfectHashFactory::NUM_POSITIONS = 10;
-size_t PerfectHashFactory::BASE = 10;
 
 class PersistentSet
 {
@@ -202,34 +285,23 @@ class PersistentSet
 
     void initialize(const std::vector<int>& numbers)
     {
-        std::vector<size_t> unsignedNumbers(numbers.size());
-        for (size_t index = 0; index < numbers.size(); ++index) {
-            unsignedNumbers[index] = static_cast<size_t>(
-                                        numbers[index] -
-                                        std::numeric_limits<int>::min());
-        }
-        factory_.initialize(unsignedNumbers);
-        mixedNumbers_.resize(unsignedNumbers.size());
-        for (size_t index = 0; index < mixedNumbers_.size(); ++index) {
-            mixedNumbers_[factory_.hash(unsignedNumbers[index])] =
-                                                unsignedNumbers[index];
+        factory_.initialize(numbers, 10);
+        numbers_.resize(numbers.size());
+        for (size_t index = 0; index < numbers_.size(); ++index) {
+            numbers_[factory_.hash(numbers[index])] = numbers[index];
         }
     }
 
     bool contains(int number) const
     {
-        size_t nonNegative = number - std::numeric_limits<int>::min();
-        size_t index = factory_.hash(nonNegative);
-        // subtract minimal possible in value to obtain nonnegative value
-        // to fit size_t type
-        return mixedNumbers_[index] == nonNegative;
+        size_t index = factory_.hash(number);
+        return numbers_[index] == number;
     }
 
     private:
-
     size_t size_;
     PerfectHashFactory factory_;
-    std::vector<size_t> mixedNumbers_;
+    std::vector<int> numbers_;
 };
 
 int main()
@@ -239,23 +311,27 @@ int main()
     std::cin >> numNumbers;
     std::vector<int> numbers(numNumbers);
     for (size_t i = 0; i < numNumbers; ++i) {
+        // scanf("%d", &numbers[i]);
         std::cin >> numbers[i];
     }
     PersistentSet perSet;
     perSet.initialize(numbers);
-    std::cerr << static_cast<double>(clock()) / CLOCKS_PER_SEC << std::endl;
+    int buildTime = static_cast<double>(clock()) / CLOCKS_PER_SEC;
+    assert(buildTime < 1.0);
 
     size_t numQueries;
     std::cin >> numQueries;
+    std::string ans;
     for (size_t i = 0; i < numQueries; ++i) {
         int number;
         std::cin >> number;
         if (perSet.contains(number)) {
-            std::cout << "Yes" << std::endl;
+            ans += "Yes\n";
         }
         else {
-            std::cout << "No" << std::endl;
+            ans += "No\n";
         }
     }
+    puts(ans.c_str());
     std::cerr << static_cast<double>(clock()) / CLOCKS_PER_SEC << std::endl;
 }
