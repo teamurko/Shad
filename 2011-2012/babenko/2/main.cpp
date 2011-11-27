@@ -2,37 +2,64 @@
 #include <vector>
 #include <algorithm>
 
-void readSeq(std::vector<int>* sequence)
+typedef std::vector<int> IntSequence;
+
+void readSequence(IntSequence* sequence)
 {
-    size_t seqSize = 0;
-    std::cin >> seqSize;
-    sequence->resize(seqSize);
-    for (size_t i = 0; i < seqSize; ++i) {
+    size_t sequenceSize = 0;
+    std::cin >> sequenceSize;
+    sequence->resize(sequenceSize);
+    for (size_t i = 0; i < sequenceSize; ++i) {
         std::cin >> (*sequence)[i];
+    }
+}
+
+void solve(const IntSequence& sequenceFirst,
+           const IntSequence& sequenceSecond,
+           std::vector<size_t>* longestLengths)
+{
+    // Denotes intermediate solution for prefix of the second sequence,
+    // and each i-th element equals answer for i-th prefix of the first sequence.
+    // Initially this is the solution, containing 0s, for empty second sequence.
+    longestLengths->resize(sequenceFirst.size());
+    // Iterate over elements of the second sequence, updating answer
+    // for the next prefix.
+    for (size_t secondIndex = 0; secondIndex < sequenceSecond.size(); ++secondIndex) {
+        // This value is the longest common subsequence length for previous
+        // prefixes of the first and the second sequences.
+        size_t previousPrefixLongestLength = 0;
+        for (size_t index = 0; index < sequenceFirst.size(); ++index) {
+            // Just init current value by longestLengths[index], which is the answer
+            // for index-th prefix of the first sequence and (secondIndex-1)-th prefix
+            // of the second sequence.
+            size_t currentLongestLength = longestLengths->at(index);
+            // If there is previous non-empty prefix, try to update current
+            // longest length value.
+            if (index > 0) {
+                currentLongestLength = std::max(currentLongestLength, longestLengths->at(index - 1));
+            }
+            // It is optimal to match last elements provided that they are equal.
+            if (sequenceFirst[index] == sequenceSecond[secondIndex]) {
+                currentLongestLength = std::max(currentLongestLength, previousPrefixLongestLength + 1);
+            }
+            previousPrefixLongestLength = longestLengths->at(index);
+            (*longestLengths)[index] = currentLongestLength;
+        }
     }
 }
 
 int main()
 {
     std::ios_base::sync_with_stdio(false);
-    std::vector<int> seqA, seqB;
-    readSeq(&seqA);
-    readSeq(&seqB);
-    std::vector<size_t> longestCommonSubseq(seqA.size());
-    for (size_t seqBIndex = 0; seqBIndex < seqB.size(); ++seqBIndex) {
-        size_t oneStepBackValue = 0;
-        for (size_t index = 0; index < seqA.size(); ++index) {
-            size_t longestValue = longestCommonSubseq[index];
-            if (index > 0) {
-                longestValue = std::max(longestValue, longestCommonSubseq[index - 1]);
-            }
-            if (seqA[index] == seqB[seqBIndex]) {
-                longestValue = std::max(longestValue, oneStepBackValue + 1);
-            }
-            oneStepBackValue = longestCommonSubseq[index];
-            longestCommonSubseq[index] = longestValue;
-        }
-    }
-    std::cout << longestCommonSubseq.back() << std::endl;
+
+    IntSequence sequenceFirst, sequenceSecond;
+    readSequence(&sequenceFirst);
+    readSequence(&sequenceSecond);
+
+    std::vector<size_t> longestCommonLengths;
+    solve(sequenceFirst, sequenceSecond, &longestCommonLengths);
+
+    std::cout << longestCommonLengths.back() << std::endl;
+
     return 0;
 }
