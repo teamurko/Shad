@@ -234,6 +234,7 @@ void processInputData(size_t* kthOrderStatistic,
     }
 
     std::cin >> *operations;
+    operations->resize(numOperations);
 }
 
 void processSolution(size_t kthOrderStatistic,
