@@ -2,6 +2,7 @@
 #include <vector>
 #include <limits>
 #include <string>
+#include <algorithm>
 #include <cassert>
 #include <stdexcept>
 
@@ -57,7 +58,7 @@ class HeapElementComparator
         throw std::runtime_error("Operation is not supported");
     }
 
-    ~HeapElementComparator() { }
+    virtual ~HeapElementComparator() { }
 };
 
 // This class does not own elements
@@ -68,7 +69,7 @@ public:
     typedef Element<BinaryHeap> HeapElement;
     typedef Comparator<HeapElement> HeapElementComparator;
 
-    BinaryHeap(const Comparator<HeapElement>& comparator)
+    explicit BinaryHeap(const Comparator<HeapElement>& comparator)
         : comparator_(comparator) { }
 
     void push(HeapElement* element)
@@ -334,7 +335,7 @@ void test()
 int main()
 {
     std::ios_base::sync_with_stdio(false);
-    //test();
+    // test();
 
     std::string operations;
     size_t kthOrderStatistic;
