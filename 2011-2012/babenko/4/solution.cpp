@@ -124,15 +124,6 @@ public:
 
     size_t size() { return heap_.size(); }
 
-    friend std::ostream& operator<<(std::ostream& os, const BinaryHeap& heap)
-    {
-        os << "Heap : ";
-        for (size_t i = 0; i < heap.heap_.size(); ++i) {
-            os << " " << heap.heap_[i]->key();
-        }
-        return os;
-    }
-
 private:
     void siftUp(size_t position)
     {
@@ -258,11 +249,6 @@ public:
                 !overflowHeap_.empty()) {
             transfer();
         }
-        /*
-        std::cerr << "pop" << std::endl;
-        std::cerr << kHeap_ << std::endl;
-        std::cerr << overflowHeap_ << std::endl;
-        */
     }
 
     void push()
@@ -275,11 +261,6 @@ public:
                 kHeap_.top().key() > overflowHeap_.top().key()) {
             transfer();
         }
-        /*
-        std::cerr << "push" << std::endl;
-        std::cerr << kHeap_ << std::endl;
-        std::cerr << overflowHeap_ << std::endl;
-        */
     }
 
     int answer() const
@@ -309,78 +290,6 @@ private:
     CommonHeap overflowHeap_;
 };
 
-struct TrivialSolver
-{
-    TrivialSolver(const HeapElements& elements, size_t kthOrderStatistic)
-    {
-        elements_.resize(elements.size());
-        for (size_t i = 0; i < elements.size(); ++i) {
-            elements_[i] = elements[i].key();
-        }
-        begin_ = end_ = 0;
-        kthOrderStatistic_ = kthOrderStatistic;
-    }
-
-    void pop()
-    {
-        require(begin_ + 1 < end_, "begin cannot pass ahead of end pointer");
-        int element = elements_[begin_++];
-        if (overflowHeap_.count(element) > 0) {
-            overflowHeap_.erase(overflowHeap_.find(element));
-        }
-        else {
-            require(kHeap_.count(element) > 0, "WTF");
-            kHeap_.erase(kHeap_.find(element));
-            if (kHeap_.size() < kthOrderStatistic_ &&
-                    !overflowHeap_.empty()) {
-                transfer();
-            }
-        }
-    }
-
-    void push()
-    {
-        require(end_ < elements_.size(), "end pointer is out of range");
-        overflowHeap_.insert(elements_[end_++]);
-        std::multiset<int>::const_iterator last = kHeap_.end();
-        if (kHeap_.size() < kthOrderStatistic_ ||
-                // quite dangerous piece of code, as it makes additional
-                // cohesion in the program; why not to use comparator?
-                *(--last) > *overflowHeap_.begin()) {
-            transfer();
-        }
-    }
-
-    int answer() const
-    {
-        std::multiset<int>::const_iterator last = kHeap_.end();
-        if (kthOrderStatistic_ == kHeap_.size()) {
-            return *(--last);
-        }
-        return -1;
-    }
-
-private:
-    void transfer()
-    {
-        kHeap_.insert(*overflowHeap_.begin());
-        overflowHeap_.erase(overflowHeap_.begin());
-        std::multiset<int>::const_iterator last = kHeap_.end();
-        --last;
-        if (kHeap_.size() > kthOrderStatistic_) {
-            overflowHeap_.insert(*last);
-            kHeap_.erase(last);
-        }
-    }
-
-    std::vector<int> elements_;
-    size_t kthOrderStatistic_;
-    size_t begin_;
-    size_t end_;
-    std::multiset<int> kHeap_;
-    std::multiset<int> overflowHeap_;
-};
-
 void processSolution(size_t kthOrderStatistic,
                      const std::string& operations,
                      const HeapElements& elements)
@@ -404,92 +313,16 @@ void processSolution(size_t kthOrderStatistic,
     }
 }
 
-void test(size_t kthOrderStatistic,
-                     const std::string& operations,
-                     const HeapElements& elements)
-{
-    Solver solver(elements, kthOrderStatistic);
-    TrivialSolver trivial(elements, kthOrderStatistic);
-    solver.push();
-    trivial.push();
-
-    for (size_t operationIndex = 0; operationIndex < operations.size();
-                ++operationIndex) {
-        if (operations[operationIndex] == 'L') {
-            solver.pop();
-            trivial.pop();
-        }
-        else if (operations[operationIndex] == 'R') {
-            solver.push();
-            trivial.push();
-        }
-        else {
-            throw std::runtime_error("Unknown operation");
-        }
-
-        if (trivial.answer() != solver.answer()) {
-            std::cerr << "BAD TEST" << std::endl;
-            /*
-            std::cerr << elements.size();
-            for (size_t i = 0; i < elements.size(); ++i) {
-                std::cerr << " " << elements[i].key();
-            }
-            std::cerr << std::endl;
-            std::cerr << kthOrderStatistic << std::endl;
-            std::cerr << operations.size() << " " << operations << std::endl;
-            */
-            exit(1);
-        }
-    }
-}
-
 int main()
 {
     std::ios_base::sync_with_stdio(false);
-    for (size_t it = 0; it < 10000; ++it) {
-        size_t n = rand() % 15 + 4;
-        size_t k = n / 4;
-        size_t m = rand() % (2 * n - 2);
-        size_t l = 0, r = 0;
-        std::string s;
-        for (size_t i = 0; i < m; ++i) {
-            if (r == n - 1) {
-                s += 'L';
-                continue;
-            }
-            if (l == 0) {
-                s += 'R';
-                ++l;
-                ++r;
-            }
-            else {
-                if (rand() & 1) {
-                    s += 'R';
-                    ++l;
-                    ++r;
-                }
-                else {
-                    s += 'L';
-                    --l;
-                }
-            }
-        }
-        std::vector<HeapElement> elements;
-        for (size_t i = 0; i < n; ++i) {
-            elements.push_back(HeapElement(rand() % 20));
-        }
 
-        // std::cerr << "test " << it << " for " << s << " " << k << " " << n << std::endl;
-        test(k, s, elements);
-    }
-
-    /*
     std::string operations;
     size_t kthOrderStatistic;
     std::vector<HeapElement> elements;
     processInputData(&kthOrderStatistic, &operations, &elements);
 
     processSolution(kthOrderStatistic, operations, elements);
-    */
+
     return 0;
 }
