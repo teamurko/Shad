@@ -1,3 +1,3 @@
-all: main.o
-	g++ -o main main.cpp
+all: solution.o
+	g++ -o solution solution.cpp
 
