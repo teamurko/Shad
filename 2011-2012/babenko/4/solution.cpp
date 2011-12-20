@@ -117,8 +117,6 @@ public:
 
     size_t size() const { return heap_.size(); }
 
-    size_t size() { return heap_.size(); }
-
 private:
     void siftUp(size_t position)
     {
@@ -206,21 +204,19 @@ class HeapElementGreater : public CommonHeap::HeapElementComparator
     }
 };
 
-typedef std::vector<HeapElement> HeapElements;
-
-void processInputData(size_t* kthOrderStatistic,
+void processInputData(size_t& kthOrderStatistic,
                       std::string* operations,
-                      HeapElements* elements)
+                      std::vector<int>* elements)
 {
     size_t numElements, numOperations;
-    std::cin >> numElements >> numOperations >> *kthOrderStatistic;
+    std::cin >> numElements >> numOperations >> kthOrderStatistic;
 
     elements->reserve(numElements);
 
     for (size_t index = 0; index < numElements; ++index) {
         int value;
         std::cin >> value;
-        elements->push_back(HeapElement(value));
+        elements->push_back(value);
     }
 
     std::cin >> *operations;
@@ -284,13 +280,15 @@ private:
     CommonHeap overflowHeap_;
 };
 
-void processSolution(size_t kthOrderStatistic,
-                     const std::string& operations,
-                     const HeapElements& elements)
+void computeOrderStatisticInSlidingWindow(
+        size_t kthOrderStatistic,
+        const std::string& operations,
+        const std::vector<int>& elements)
 {
     QueueWithOrderStatistic queue(kthOrderStatistic);
     size_t tail = 0;
-    queue.push(elements[tail++].key());
+    queue.push(elements[tail]);
+    ++tail;
 
     for (size_t operationIndex = 0; operationIndex < operations.size();
                 ++operationIndex) {
@@ -298,7 +296,8 @@ void processSolution(size_t kthOrderStatistic,
             queue.pop_front();
         }
         else if (operations[operationIndex] == 'R') {
-            queue.push(elements[tail++].key());
+            queue.push(elements[tail]);
+            ++tail;
         }
         else {
             throw std::runtime_error("Unknown operation");
@@ -314,10 +313,10 @@ int main()
 
     std::string operations;
     size_t kthOrderStatistic;
-    std::vector<HeapElement> elements;
-    processInputData(&kthOrderStatistic, &operations, &elements);
-
-    processSolution(kthOrderStatistic, operations, elements);
+    std::vector<int> elements;
+    processInputData(kthOrderStatistic, &operations, &elements);
+    computeOrderStatisticInSlidingWindow(
+                    kthOrderStatistic, operations, elements);
 
     return 0;
 }
