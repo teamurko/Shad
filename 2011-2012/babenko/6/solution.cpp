@@ -1,6 +1,11 @@
 #include <iostream>
+#include <queue>
 #include <vector>
+#include <utility>
+#include <string>
 #include <stdexcept>
+#include <algorithm>
+#include <memory>
 
 void require(bool cond, const std::string& message)
 {
@@ -12,7 +17,7 @@ void require(bool cond, const std::string& message)
 #define SIZE(node) ((node) == NULL ? 0 : (node)->size())
 #define EMPTY_TREE NULL
 
-template <class Key=int, class Value=char>
+template <class Key, class Value>
 class Element
 {
 public:
@@ -33,7 +38,8 @@ template <class Element>
 class Node
 {
 public:
-    typedef Node* NodePointer;
+    typedef Node<Element> Type;
+    typedef Type* NodePointer;
 
     explicit Node(const Element& element, NodePointer leftChild = EMPTY_TREE,
                   NodePointer rightChild = EMPTY_TREE,
@@ -69,9 +75,9 @@ public:
                rightChild_ == EMPTY_TREE;
     }
 
-    static NodePointer instance(const Element& element) const
+    static NodePointer instance(const Element& element)
     {
-        return new Node(element);
+        return new Node<Element>(element);
     }
 
 private:
@@ -87,30 +93,83 @@ private:
     size_t size_;
 };
 
+
+template <class Element>
+class CartesianTree;
+
+// for conversion
+template <class Element>
+class CartesianTreeRef
+{
+public:
+    typedef typename Node<Element>::NodePointer NodePointer;
+    typedef typename Node<Element>::Type Node;
+    typedef NodePointer Tree;
+    typedef std::auto_ptr<Node> Root;
+
+    explicit CartesianTreeRef(Root root)
+    : tree_(root.release()) { }
+
+    Tree get() const
+    {
+        return tree_;
+    }
+
+private:
+    Tree tree_;
+};
+
 template <class Element>
 class CartesianTree
 {
 public:
+    typedef typename Node<Element>::NodePointer NodePointer;
+    typedef typename Node<Element>::Type Node;
     typedef NodePointer Tree;
     typedef std::pair<Tree, Tree> TreesPair;
+    typedef CartesianTree<Element> Type;
+    typedef std::auto_ptr<Node> Root;
 
-    CartesianTree(const std::vector<Element>& elements)
+    explicit CartesianTree() { }
+
+    explicit CartesianTree(const std::vector<Element>& elements)
     {
         build();
     }
 
+    // it does own pointer like std::auto_ptr
+    explicit CartesianTree(Tree tree) : root_(tree) { }
+
+    explicit CartesianTree(Type& other) : root_(other.release()) { }
+
+    CartesianTree(CartesianTreeRef<Element> ref)
+    : root_(ref.get()) { }
+
+    operator CartesianTreeRef<Element>()
+    {
+        return CartesianTreeRef<Element>(root_);
+    }
+
+    Tree release()
+    {
+        return root_.release();
+    }
+
     ~CartesianTree()
     {
+        if (root_.get() == EMPTY_TREE) {
+            return;
+        }
         std::queue<NodePointer> nodes;
-        nodes.push(root_);
+        nodes.push(root_.release());
         while (!nodes.empty()) {
             NodePointer node = nodes.front();
             nodes.pop();
-            if (node.leftChild() != EMPTY_TREE) {
-                nodes.push(node.leftChild());
+            if (node->leftChild() != EMPTY_TREE) {
+                nodes.push(node->leftChild());
             }
-            if (node.rightChild() != EMPTY_TREE) {
-                nodes.push(node.rightChild());
+            if (node->rightChild() != EMPTY_TREE) {
+                nodes.push(node->rightChild());
             }
             delete node;
         }
@@ -118,10 +177,10 @@ public:
 
     void insert(size_t index, const Element& element)
     {
-        TreesPair splitPair = split(root_, index);
-        Tree innerTree = Node.instance(element);
-        root_ = merge(splitPair.first,
-                      merge(innerTree, splitPair.second));
+        TreesPair splitPair = split(root_.release(), index);
+        Tree innerTree = Node::instance(element);
+        root_.reset(merge(splitPair.first,
+                    merge(innerTree, splitPair.second)));
     }
 
     void append(const Element& element)
@@ -131,7 +190,21 @@ public:
 
     const Tree find(size_t index) const
     {
-        return find(root_, index);
+        return find(root_.get(), index);
+    }
+
+    size_t size() const { return SIZE(root_.get()); }
+
+    Type split(size_t index)
+    {
+        TreesPair result = split(root_.release(), index);
+        root_.reset(result.first);
+        return Type(result.second);
+    }
+
+    void merge(Type tree)
+    {
+        root_.reset(merge(root_.release(), tree.release()));
     }
 
 private:
@@ -148,7 +221,8 @@ private:
             return tree;
         }
         else {
-            return find(tree->rightChild(), index - tree->leftChild() - 1);
+            return find(tree->rightChild(),
+                        index - SIZE(tree->leftChild()) - 1);
         }
     }
 
@@ -156,7 +230,7 @@ private:
     {
         if (tree == EMPTY_TREE) {
             require(index == 0, "Index is out of range");
-            return EMPTY_TREE;
+            return TreesPair(EMPTY_TREE, EMPTY_TREE);
         }
         if (SIZE(tree->leftChild()) + 1 <= index) {
             TreesPair splitPair = split(tree->rightChild(),
@@ -179,7 +253,7 @@ private:
         if (rightTree == EMPTY_TREE) {
             return leftTree;
         }
-        if (leftTree->key() > rightTree->key()) {
+        if (leftTree->element().key() > rightTree->element().key()) {
             leftTree->setRightChild(
                         merge(leftTree->rightChild(), rightTree));
             return leftTree;
@@ -193,18 +267,21 @@ private:
 
     void build()
     {
-        // TODO
+        // TODO: add linear time build from collection
+        throw std::runtime_error("Unsupported operation");
     }
 
-    typedef Node<Element>::NodePointer NodePointer;
-    Tree root_;
+    std::auto_ptr<Node> root_;
 };
+
 
 template <class T>
 class Vector
 {
 public:
     typedef Vector<T> Type;
+    typedef Element<int, T> ElementType;
+    typedef CartesianTree<ElementType> Tree;
 
     Vector() { }
 
@@ -221,26 +298,89 @@ public:
 
     void put(size_t index, T value)
     {
+        // TODO: implement replace element operation
         throw std::runtime_error("Unsupported operation exception");
     }
 
-    Type disjoin(size_t index)
+    void append(Type other)
     {
+        tree_.merge(other.release());
+    }
 
+    void rotate(size_t begin, size_t end, size_t shift)
+    {
+        require(begin <= end,
+                "Incorrect elements subsegment for rotate operation");
+        if (begin + 1 < end) {
+            shift %= end - begin;
+            Tree middle = tree_.split(begin);
+            Tree tail = middle.split(end - begin);
+            Tree middlePart = middle.split(shift);
+            middlePart.merge(middle);
+            tree_.merge(middlePart);
+            tree_.merge(tail);
+        }
+    }
+
+    size_t size() const { return tree_.size(); }
+
+    friend std::ostream& operator<<(std::ostream& os, const Type& vector)
+    {
+        for (size_t i = 0; i < vector.size(); ++i) {
+            os << vector.at(i);
+        }
+        return os;
     }
 
 private:
+    // no copyable
+    explicit Vector(const Type& other) { }
+
     int random() const
     {
         return (rand() << 16) + rand();
     }
 
-    typedef Element<int, T> ElementType;
-    typedef CartesianTree<ElementType> Tree;
     Tree tree_;
+};
+
+struct Query
+{
+    size_t start;
+    size_t end;
+    size_t shift;
 };
 
 int main()
 {
+    std::ios_base::sync_with_stdio(false);
+    Vector<char> sequence;
+    std::string message;
+    std::cin >> message;
+    for (size_t i = 0; i < message.size(); ++i) {
+        sequence.append(message[i]);
+    }
+    size_t numQueries;
+    std::cin >> numQueries;
+    std::vector<Query> queries(numQueries);
+
+    for (size_t queryIndex = 0; queryIndex < numQueries; ++queryIndex) {
+        size_t startIndex, endIndex, shift;
+        std::cin >> startIndex >> endIndex >> shift;
+        --startIndex;
+
+        queries[queryIndex].start = startIndex;
+        queries[queryIndex].end = endIndex;
+        queries[queryIndex].shift = shift;
+    }
+
+    std::reverse(queries.begin(), queries.end());
+    for (size_t queryIndex = 0; queryIndex < numQueries; ++queryIndex) {
+        const Query query = queries[queryIndex];
+        sequence.rotate(query.start, query.end, query.shift);
+    }
+
+    std::cout << sequence << std::endl;
+
     return 0;
 }
