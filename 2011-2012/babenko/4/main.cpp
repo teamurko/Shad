@@ -236,23 +236,17 @@ public:
         HeapElement& element = elements_.front();
         CommonHeap* heap = element.heap();
         heap->remove(element.index());
-        if (kHeap_.size() < kthOrderStatistic_ &&
-                !overflowHeap_.empty()) {
-            transfer();
-        }
+        balance();
         elements_.pop_front();
     }
 
     void push(int key)
     {
+        require(key >= 0,
+                "Only non-negative numbers can be pushed into queue");
         elements_.push_back(HeapElement(key));
-        overflowHeap_.push(&elements_.back());
-        if (kHeap_.size() < kthOrderStatistic_ ||
-                // quite dangerous piece of code, as it makes additional
-                // cohesion in the program; why not to use comparator?
-                kHeap_.top().key() > overflowHeap_.top().key()) {
-            transfer();
-        }
+        kHeap_.push(&elements_.back());
+        balance();
     }
 
     int kthElement() const
@@ -260,15 +254,18 @@ public:
         if (kthOrderStatistic_ == kHeap_.size()) {
             return kHeap_.top().key();
         }
-        return -1;
+        return NON_EXISTENT;
     }
 
 private:
-    void transfer()
+    void balance()
     {
-        kHeap_.push(overflowHeap_.pop());
         if (kHeap_.size() > kthOrderStatistic_) {
             overflowHeap_.push(kHeap_.pop());
+        }
+        if (kHeap_.size() < kthOrderStatistic_ &&
+                            !overflowHeap_.empty()) {
+            kHeap_.push(overflowHeap_.pop());
         }
     }
 
@@ -278,6 +275,8 @@ private:
     HeapElementGreater greater_;
     CommonHeap kHeap_;
     CommonHeap overflowHeap_;
+
+    static const int NON_EXISTENT = -1;
 };
 
 void computeOrderStatisticInSlidingWindow(
