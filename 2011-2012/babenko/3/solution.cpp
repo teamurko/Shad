@@ -1,111 +1,124 @@
 #include <list>
 #include <algorithm>
 #include <ctime>
+#include <functional>
 #include <iostream>
 #include <vector>
 #include <cmath>
 #include <set>
+#include <stdexcept>
 
-#define REQUIRE(cond, message) \
-                if (!cond) { \
-                    std::cerr << message << std::endl; \
-                    exit(1); \
-                }
+void require(bool cond, const std::string& message)
+{
+    if (!cond) {
+        throw std::runtime_error(message);
+    }
+}
+
+// does not tail recursion optimization work here?
+size_t gcd(size_t first, size_t second)
+{
+    if (first == 0) {
+        return second;
+    }
+    return gcd(second % first, first);
+}
+
 
 class Triangle
 {
-    public:
+public:
     Triangle(size_t lenA, size_t lenB, size_t lenC)
-        : a_(lenA), b_(lenB), c_(lenC)
     {
-        REQUIRE(a_ > 0 && b_ > 0 && c_ > 0,
+        require(lenA > 0 && lenB > 0 && lenC > 0,
                 "Triangle sides should be positive");
-        if (a_ > b_) {
-            std::swap(a_, b_);
+        sideLengths_.push_back(lenA);
+        sideLengths_.push_back(lenB);
+        sideLengths_.push_back(lenC);
+        std::sort(sideLengths_.begin(), sideLengths_.end());
+    }
+
+    Triangle(const std::vector<size_t>& lengths) : sideLengths_(lengths)
+    {
+        require(sideLengths_.size() == 3, "Triangle should have three sides");
+        require(sideLengths_[0] > 0 && sideLengths_[1] > 0 &&
+                sideLengths_[2] > 0, "Triangle sides should be positive");
+    }
+
+    Triangle canonical() const
+    {
+        size_t gd = 0;
+        for (size_t i = 0; i < sideLengths_.size(); ++i) {
+            gd = gcd(gd, sideLengths_[i]);
         }
-        if (b_ > c_) {
-            std::swap(b_, c_);
+        std::vector<size_t> lengths(asVector());
+        for (size_t i = 0; i < lengths.size(); ++i) {
+            lengths[i] /= gd;
         }
-        if (a_ > b_) {
-            std::swap(a_, b_);
-        }
-        normalize();
-        id_ = (c_ - 1) + ((b_ - 1) + (a_ - 1) * BASE) * BASE;
+        return Triangle(lengths);
+    }
+
+    std::vector<size_t> asVector() const
+    {
+        return sideLengths_;
     }
 
     size_t simpleHashModuloP(size_t dividend) const
     {
-        REQUIRE(dividend > 0, "Zero modulo");
-        return id_ % dividend;
-    }
-
-    size_t id() const
-    {
-        return id_;
+        require(dividend > 0, "Zero modulo");
+        return hash() % dividend;
     }
 
     size_t hash() const
     {
-        return id_;
-    }
-
-    private:
-    void normalize()
-    {
-        size_t gd = gcd(a_, gcd(b_, c_));
-        a_ = a_ / gd;
-        b_ = b_ / gd;
-        c_ = c_ / gd;
-    }
-
-    size_t gcd(size_t first, size_t second)
-    {
-        if (first == 0) {
-            return second;
+        size_t result = 0;
+        for (size_t i = 0; i < sideLengths_.size(); ++i) {
+            result = result * BASE + (sideLengths_[i] - 1);
         }
-        return gcd(second % first, first);
+        return result;
     }
 
-    private:
+    bool operator==(const Triangle& other) const
+    {
+        return sideLengths_ == other.sideLengths_;
+    }
+
+private:
     static size_t BASE;
-    size_t a_;
-    size_t b_;
-    size_t c_;
-    size_t id_;
+    std::vector<size_t> sideLengths_; // sorted
 };
 
 size_t Triangle::BASE = 1000;
 
-template <class T>
-class EqualsOne
+namespace std {
+template<>
+struct equal_to<Triangle> :
+    binary_function<Triangle, Triangle, bool>
 {
-    public:
-    explicit EqualsOne(const T& object) : object_(object) { }
-
-    bool operator()(const T& other) const
+    bool operator()(const Triangle& first, const Triangle& second) const
     {
-        return other.id() == object_.id();
+        return first == second;
     }
-
-    private:
-    const T& object_;
 };
+}
 
 template <class Object>
 class HashTable
 {
-    public:
-    explicit HashTable(size_t size) : size_(size), table_(size_)
+public:
+    explicit HashTable(size_t size) : table_(size)
     {
-        REQUIRE(size > 0, "Cannot instantiate empty hash table");
+        require(size > 0, "Cannot instantiate empty hash table");
     }
 
     bool add(const Object& obj)
     {
-        size_t index = obj.hash() % size_;
+        std::binder2nd<std::equal_to<Object> > comparator =
+                            std::bind2nd(std::equal_to<Object>(), obj);
+        size_t index = obj.hash() % table_.size();
         if (std::find_if(table_[index].begin(),
                          table_[index].end(),
-                         EqualsOne<Object>(obj)) ==
+                         comparator) ==
                     table_[index].end()) {
             table_[index].insert(table_[index].begin(), obj);
             return true;
@@ -113,28 +126,42 @@ class HashTable
         return false;
     }
 
-    // TODO return iterator
-
-    private:
+private:
     typedef std::list<Object> Objects;
-    size_t size_;
     std::vector<Objects> table_;
 };
 
-int main()
+void readData(std::vector<Triangle>* triangles)
 {
-    std::ios_base::sync_with_stdio(false);
     size_t numTriangles;
     std::cin >> numTriangles;
-    HashTable<Triangle> htable(2324447); // prime
-    size_t numUnique = 0;
-    for (size_t index = 0; index < numTriangles; ++index) {
+    for (size_t index = 0; index < numTriangles; ++index)
+    {
         size_t lenA, lenB, lenC;
         std::cin >> lenA >> lenB >> lenC;
-        if (htable.add(Triangle(lenA, lenB, lenC))) {
+        triangles->push_back(Triangle(lenA, lenB, lenC));
+    }
+}
+
+void solve(const std::vector<Triangle>& triangles)
+{
+    HashTable<Triangle> htable(2324447); // prime
+    size_t numUnique = 0;
+    for (size_t index = 0; index < triangles.size(); ++index) {
+        if (htable.add(triangles[index].canonical())) {
             numUnique++;
         }
     }
     std::cout << numUnique << std::endl;
     std::cerr << static_cast<double>(clock()) / CLOCKS_PER_SEC << std::endl;
+}
+
+int main()
+{
+    std::ios_base::sync_with_stdio(false);
+    std::vector<Triangle> triangles;
+    readData(&triangles);
+    solve(triangles);
+
+    return 0;
 }
