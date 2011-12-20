@@ -1,3 +1,4 @@
+#include <deque>
 #include <set>
 #include <iostream>
 #include <vector>
@@ -29,17 +30,11 @@ public:
 
     int key() const { return key_; }
 
-    int key() { return key_; }
-
     size_t index() const { return index_; }
-
-    size_t index() { return index_; }
 
     void setIndex(size_t index) { index_ = index; }
 
     Heap* heap() const { return heap_; }
-
-    Heap* heap() { return heap_; }
 
     void setHeap(Heap* heap) { heap_ = heap; }
 
@@ -121,8 +116,6 @@ public:
     bool empty() const { return heap_.size() == 0; }
 
     size_t size() const { return heap_.size(); }
-
-    size_t size() { return heap_.size(); }
 
 private:
     void siftUp(size_t position)
@@ -211,50 +204,49 @@ class HeapElementGreater : public CommonHeap::HeapElementComparator
     }
 };
 
-typedef std::vector<HeapElement> HeapElements;
-
-void processInputData(size_t* kthOrderStatistic,
+void processInputData(size_t& kthOrderStatistic,
                       std::string* operations,
-                      HeapElements* elements)
+                      std::vector<int>* elements)
 {
     size_t numElements, numOperations;
-    std::cin >> numElements >> numOperations >> *kthOrderStatistic;
+    std::cin >> numElements >> numOperations >> kthOrderStatistic;
 
     elements->reserve(numElements);
 
     for (size_t index = 0; index < numElements; ++index) {
         int value;
         std::cin >> value;
-        elements->push_back(HeapElement(value));
+        elements->push_back(value);
     }
 
     std::cin >> *operations;
     operations->resize(numOperations);
 }
 
-class Solver
+class QueueWithOrderStatistic
 {
 public:
-    Solver(const HeapElements& elements, size_t kthOrderStatistic)
-        : elements_(elements), kthOrderStatistic_(kthOrderStatistic),
-          begin_(0), end_(0), kHeap_(less_), overflowHeap_(greater_) { }
+    QueueWithOrderStatistic(size_t kthOrderStatistic)
+    : kthOrderStatistic_(kthOrderStatistic),
+    kHeap_(less_), overflowHeap_(greater_) { }
 
-    void pop()
+    void pop_front()
     {
-        require(begin_ + 1 < end_, "begin cannot pass ahead of end pointer");
-        HeapElement& element = elements_[begin_++];
+        require(!elements_.empty(), "Cannot remove element from empty queue");
+        HeapElement& element = elements_.front();
         CommonHeap* heap = element.heap();
         heap->remove(element.index());
         if (kHeap_.size() < kthOrderStatistic_ &&
                 !overflowHeap_.empty()) {
             transfer();
         }
+        elements_.pop_front();
     }
 
-    void push()
+    void push(int key)
     {
-        require(end_ < elements_.size(), "end pointer is out of range");
-        overflowHeap_.push(&elements_[end_++]);
+        elements_.push_back(HeapElement(key));
+        overflowHeap_.push(&elements_.back());
         if (kHeap_.size() < kthOrderStatistic_ ||
                 // quite dangerous piece of code, as it makes additional
                 // cohesion in the program; why not to use comparator?
@@ -263,7 +255,7 @@ public:
         }
     }
 
-    int answer() const
+    int kthElement() const
     {
         if (kthOrderStatistic_ == kHeap_.size()) {
             return kHeap_.top().key();
@@ -280,36 +272,38 @@ private:
         }
     }
 
-    HeapElements elements_;
+    std::deque<HeapElement> elements_;
     size_t kthOrderStatistic_;
-    size_t begin_;
-    size_t end_;
     HeapElementLess less_;
     HeapElementGreater greater_;
     CommonHeap kHeap_;
     CommonHeap overflowHeap_;
 };
 
-void processSolution(size_t kthOrderStatistic,
-                     const std::string& operations,
-                     const HeapElements& elements)
+void computeOrderStatisticInSlidingWindow(
+        size_t kthOrderStatistic,
+        const std::string& operations,
+        const std::vector<int>& elements)
 {
-    Solver solver(elements, kthOrderStatistic);
-    solver.push();
+    QueueWithOrderStatistic queue(kthOrderStatistic);
+    size_t tail = 0;
+    queue.push(elements[tail]);
+    ++tail;
 
     for (size_t operationIndex = 0; operationIndex < operations.size();
                 ++operationIndex) {
         if (operations[operationIndex] == 'L') {
-            solver.pop();
+            queue.pop_front();
         }
         else if (operations[operationIndex] == 'R') {
-            solver.push();
+            queue.push(elements[tail]);
+            ++tail;
         }
         else {
             throw std::runtime_error("Unknown operation");
         }
 
-        std::cout << solver.answer() << std::endl;
+        std::cout << queue.kthElement() << std::endl;
     }
 }
 
@@ -319,10 +313,10 @@ int main()
 
     std::string operations;
     size_t kthOrderStatistic;
-    std::vector<HeapElement> elements;
-    processInputData(&kthOrderStatistic, &operations, &elements);
-
-    processSolution(kthOrderStatistic, operations, elements);
+    std::vector<int> elements;
+    processInputData(kthOrderStatistic, &operations, &elements);
+    computeOrderStatisticInSlidingWindow(
+                    kthOrderStatistic, operations, elements);
 
     return 0;
 }
