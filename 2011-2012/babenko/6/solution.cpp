@@ -351,34 +351,47 @@ struct Query
     size_t shift;
 };
 
-int main()
+void readData(std::vector<Query>* queries, Vector<char>* sequence)
 {
-    std::ios_base::sync_with_stdio(false);
-    Vector<char> sequence;
     std::string message;
     std::cin >> message;
     for (size_t i = 0; i < message.size(); ++i) {
-        sequence.append(message[i]);
+        sequence->append(message[i]);
     }
+
     size_t numQueries;
     std::cin >> numQueries;
-    std::vector<Query> queries(numQueries);
+    queries->resize(numQueries);
 
     for (size_t queryIndex = 0; queryIndex < numQueries; ++queryIndex) {
         size_t startIndex, endIndex, shift;
         std::cin >> startIndex >> endIndex >> shift;
         --startIndex;
 
-        queries[queryIndex].start = startIndex;
-        queries[queryIndex].end = endIndex;
-        queries[queryIndex].shift = shift;
+        (*queries)[queryIndex].start = startIndex;
+        (*queries)[queryIndex].end = endIndex;
+        (*queries)[queryIndex].shift = shift;
     }
+    std::reverse(queries->begin(), queries->end());
+}
 
-    std::reverse(queries.begin(), queries.end());
-    for (size_t queryIndex = 0; queryIndex < numQueries; ++queryIndex) {
+void decodeSequence(const std::vector<Query>& queries, Vector<char>* sequence)
+{
+    for (size_t queryIndex = 0; queryIndex < queries.size(); ++queryIndex) {
         const Query query = queries[queryIndex];
-        sequence.rotate(query.start, query.end, query.shift);
+        sequence->rotate(query.start, query.end, query.shift);
     }
+}
+
+int main()
+{
+    std::ios_base::sync_with_stdio(false);
+
+    std::vector<Query> queries;
+    Vector<char> sequence;
+    readData(&queries, &sequence);
+
+    decodeSequence(queries, &sequence);
 
     std::cout << sequence << std::endl;
 
