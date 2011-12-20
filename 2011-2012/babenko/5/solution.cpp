@@ -2,7 +2,7 @@
 #include <vector>
 #include <limits>
 
-enum {EMPTY_PLACE = -2, FULL_PARKING, PLACE_FREED};
+enum {EMPTY_PLACE = -3, FULL_PARKING, PLACE_FREED};
 
 const size_t UNDEFINED_INDEX = std::numeric_limits<size_t>::max();
 
@@ -80,8 +80,8 @@ size_t findFirstEmpty(const FenwickTree& tree, size_t begin, size_t end)
     }
 }
 
-void processArrived(int operation, size_t parkingSize,
-                    FenwickTree* tree, std::vector<int>* result)
+int processArrived(int operation, size_t parkingSize,
+                    FenwickTree* tree)
 {
     int position = operation - 1;
     size_t place = findFirstEmpty(*tree, position,
@@ -94,24 +94,24 @@ void processArrived(int operation, size_t parkingSize,
         else {
             tree->update(place - parkingSize, 1);
         }
-        result->push_back(place % parkingSize + 1);
+        return place % parkingSize;
     }
     else {
-        result->push_back(FULL_PARKING);
+        return FULL_PARKING;
     }
 }
 
-void processLeaving(int operation, size_t parkingSize,
-                    FenwickTree* tree, std::vector<int>* result)
+int processLeaving(int operation, size_t parkingSize,
+                    FenwickTree* tree)
 {
     int position = -operation - 1;
     if ((*tree)(position, position + 1) > 0) {
         tree->update(position, -1);
         tree->update(position + parkingSize, -1);
-        result->push_back(PLACE_FREED);
+        return PLACE_FREED;
     }
     else {
-        result->push_back(EMPTY_PLACE);
+        return EMPTY_PLACE;
     }
 }
 
@@ -122,10 +122,12 @@ void solve(size_t parkingSize, const std::vector<int>& operations,
     for (size_t index = 0; index < operations.size(); ++index) {
         int operation = operations[index];
         if (operation > 0) {
-            processArrived(operation, parkingSize, &tree, result);
+            result->push_back(
+                        processArrived(operation, parkingSize, &tree));
         }
         else {
-            processLeaving(operation, parkingSize, &tree, result);
+            result->push_back(
+                        processLeaving(operation, parkingSize, &tree));
         }
     }
 }
@@ -133,7 +135,7 @@ void solve(size_t parkingSize, const std::vector<int>& operations,
 void outputData(const std::vector<int>& responses)
 {
     for (size_t index = 0; index < responses.size(); ++index) {
-        std::cout << responses[index] << std::endl;
+        std::cout << responses[index] + 1 << std::endl;
     }
 }
 
