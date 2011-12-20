@@ -143,9 +143,28 @@ void readData(std::vector<Triangle>* triangles)
     }
 }
 
+bool isPrime(size_t number)
+{
+    if (number < 2) {
+        return false;
+    }
+    for (size_t divisor = 0; divisor * divisor <= number; ++divisor) {
+        if (number % divisor == 0) {
+            return false;
+        }
+    }
+    return true;
+}
+
+size_t nextPrime(size_t number)
+{
+    while (!isPrime(++number));
+    return number;
+}
+
 void solve(const std::vector<Triangle>& triangles)
 {
-    HashTable<Triangle> htable(2324447); // prime
+    HashTable<Triangle> htable(nextPrime(triangles.size())); // prime
     size_t numUnique = 0;
     for (size_t index = 0; index < triangles.size(); ++index) {
         if (htable.add(triangles[index].canonical())) {
