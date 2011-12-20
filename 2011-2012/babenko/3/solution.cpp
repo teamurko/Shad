@@ -164,7 +164,7 @@ size_t nextPrime(size_t number)
 
 void solve(const std::vector<Triangle>& triangles)
 {
-    HashTable<Triangle> htable(triangles.size()); // prime
+    HashTable<Triangle> htable(nextPrime(triangles.size())); // prime
     size_t numUnique = 0;
     for (size_t index = 0; index < triangles.size(); ++index) {
         if (htable.add(triangles[index].canonical())) {
