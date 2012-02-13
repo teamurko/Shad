@@ -2,7 +2,8 @@
 #include <vector>
 #include <limits>
 
-enum {EMPTY_PLACE = -3, FULL_PARKING, PLACE_FREED};
+enum ParkingEvent {
+    EMPTY_PLACE = -2, FULL_PARKING = -1, PLACE_FREED = 0, PLACE_OCCUPIED = 1};
 
 const size_t UNDEFINED_INDEX = std::numeric_limits<size_t>::max();
 
@@ -80,12 +81,19 @@ size_t findFirstEmpty(const FenwickTree& tree, size_t begin, size_t end)
     }
 }
 
-int processArrived(int operation, size_t parkingSize,
-                    FenwickTree* tree)
+struct OperationResult
+{
+    ParkingEvent event;
+    size_t carOccupiedPlace;
+};
+
+OperationResult
+processArrived(int operation, size_t parkingSize, FenwickTree* tree)
 {
     int position = operation - 1;
     size_t place = findFirstEmpty(*tree, position,
                                position + parkingSize);
+    OperationResult result;
     if (place != UNDEFINED_INDEX) {
         tree->update(place, 1);
         if (place < parkingSize) {
@@ -94,29 +102,33 @@ int processArrived(int operation, size_t parkingSize,
         else {
             tree->update(place - parkingSize, 1);
         }
-        return place % parkingSize;
+        result.event = PLACE_OCCUPIED;
+        result.carOccupiedPlace = place % parkingSize;
     }
     else {
-        return FULL_PARKING;
+        result.event = FULL_PARKING;
     }
+    return result;
 }
 
-int processLeaving(int operation, size_t parkingSize,
-                    FenwickTree* tree)
+OperationResult
+processLeaving(int operation, size_t parkingSize, FenwickTree* tree)
 {
     int position = -operation - 1;
+    OperationResult result;
     if ((*tree)(position, position + 1) > 0) {
         tree->update(position, -1);
         tree->update(position + parkingSize, -1);
-        return PLACE_FREED;
+        result.event = PLACE_FREED;
     }
     else {
-        return EMPTY_PLACE;
+        result.event = EMPTY_PLACE;
     }
+    return result;
 }
 
 void solve(size_t parkingSize, const std::vector<int>& operations,
-           std::vector<int>* result)
+           std::vector<OperationResult>* result)
 {
     FenwickTree tree(2 * parkingSize);
     for (size_t index = 0; index < operations.size(); ++index) {
@@ -132,10 +144,15 @@ void solve(size_t parkingSize, const std::vector<int>& operations,
     }
 }
 
-void outputData(const std::vector<int>& responses)
+void outputData(const std::vector<OperationResult>& responses)
 {
     for (size_t index = 0; index < responses.size(); ++index) {
-        std::cout << responses[index] + 1 << std::endl;
+        if (responses[index].event == PLACE_OCCUPIED) {
+            std::cout << responses[index].carOccupiedPlace + 1 << std::endl;
+        }
+        else {
+            std::cout << responses[index].event << std::endl;
+        }
     }
 }
 
@@ -146,7 +163,7 @@ int main()
     size_t parkingSize;
     std::vector<int> operations;
     readData(parkingSize, &operations);
-    std::vector<int> queryResponses;
+    std::vector<OperationResult> queryResponses;
     solve(parkingSize, operations, &queryResponses);
     outputData(queryResponses);
     return 0;
