@@ -24,6 +24,7 @@ struct Edge
 
 struct Arc
 {
+    Arc() : to(-1), id(-1) { }
     Arc(Id toIn, Id idIn) : to(toIn), id(idIn) { }
     Id to;
     Id id;
@@ -261,6 +262,7 @@ public:
 
     void generateUniRandPartialCirculations()
     {
+        edgesBits_.resize(graph_.numEdges());
         for (size_t index = 0; index < nonTreeEdges_.size(); ++index) {
             const Edge& edge = nonTreeEdges_[index];
             for (size_t bit = 0; bit < numBits_; ++bit) {
@@ -285,6 +287,7 @@ public:
         verticesQueue.push(root_);
         std::vector<bool> used(tree.numVertices());
         used[root_] = true;
+        rootedSpanningTreeParents_.resize(tree.numVertices());
         while (!verticesQueue.empty()) {
             Id vertex = verticesQueue.front();
             orderedVertices_.push_back(vertex);
@@ -330,11 +333,15 @@ void solve(size_t numVertices, const Edges& edges)
     ProbableEdgeCutSolver solver(graph, 60);
     solver.solve();
     Edges cutEdges = solver.cutEdges();
-    size_t minWeight = 1e9+111;
-    for (size_t index = 0; index < cutEdges.size(); ++index) {
-        minWeight = std::min(minWeight, cutEdges[index].weight);
+    if (cutEdges.empty()) {
+        std::cout << -1 << std::endl;
+    } else {
+        size_t minWeight = 1e9+111;
+        for (size_t index = 0; index < cutEdges.size(); ++index) {
+            minWeight = std::min(minWeight, cutEdges[index].weight);
+        }
+        std::cout << minWeight << std::endl;
     }
-    std::cout << minWeight << std::endl;
 }
 
 int main()
