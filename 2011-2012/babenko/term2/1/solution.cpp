@@ -1,3 +1,4 @@
+#include <limits>
 #include <set>
 #include <queue>
 #include <iostream>
@@ -334,7 +335,7 @@ private:
 class EdgesCutSolver
 {
 public:
-    EdgesCutSolver(const Graph& graph)
+    explicit EdgesCutSolver(const Graph& graph)
         : graph_(graph), up_(graph_.numVertices()),
         id_(graph_.numVertices()), used_(graph_.numVertices()),
         timer_(0)
@@ -406,7 +407,7 @@ void solve(size_t numVertices, const Edges& edges)
     if (cutEdges.empty()) {
         std::cout << -1 << std::endl;
     } else {
-        size_t minWeight = 1e9+111;
+        size_t minWeight = 1e9 + 111;
         for (size_t index = 0; index < cutEdges.size(); ++index) {
             minWeight = std::min(minWeight, cutEdges[index].weight);
         }
@@ -416,13 +417,13 @@ void solve(size_t numVertices, const Edges& edges)
 
 void testWithRandomGraph()
 {
-    size_t n = rand() % 1000 + 10;
-    DisjointSet ds(n);
+    size_t numVertices = rand() % 1000 + 10;
+    DisjointSet ds(numVertices);
     std::set<std::pair<Id, Id> > used;
     Edges edges;
     while (!ds.hasOneGroup()) {
-        Id u = rand() % n;
-        Id v = rand() % n;
+        Id u = rand() % numVertices;
+        Id v = rand() % numVertices;
         if (u == v) {
             continue;
         }
@@ -434,16 +435,16 @@ void testWithRandomGraph()
         }
         used.insert(std::make_pair(u, v));
         used.insert(std::make_pair(v, u));
-        size_t w = rand() % 100;
-        Edge edge = {u, v, w, edges.size()};
+        size_t weight = rand() % 100;
+        Edge edge = {u, v, weight, edges.size()};
         edges.push_back(edge);
         ds.merge(u, v);
     }
-    size_t rest = (n - 1) * (n - 2) / 2;
+    size_t rest = (numVertices - 1) * (numVertices - 2) / 2;
     size_t numAdd = rand() % rest;
     for (size_t index = 0; index < numAdd; ++index) {
-        Id u = rand() % n;
-        Id v = rand() % n;
+        Id u = rand() % numVertices;
+        Id v = rand() % numVertices;
         if (u == v) {
             continue;
         }
@@ -452,11 +453,11 @@ void testWithRandomGraph()
         }
         used.insert(std::make_pair(u, v));
         used.insert(std::make_pair(v, u));
-        size_t w = rand() % 100;
-        Edge edge = {u, v, w, edges.size()};
+        size_t weight = rand() % 100;
+        Edge edge = {u, v, weight, edges.size()};
         edges.push_back(edge);
     }
-    Graph graph(n, edges);
+    Graph graph(numVertices, edges);
     ProbableEdgesCutSolver psolver(graph, 60);
     psolver.solve();
     EdgesCutSolver solver(graph);
