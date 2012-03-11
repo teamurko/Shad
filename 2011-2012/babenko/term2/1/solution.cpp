@@ -401,7 +401,7 @@ bool checkSameEdges(const Edges& first, const Edges& second)
 void solve(size_t numVertices, const Edges& edges)
 {
     Graph graph(numVertices, edges);
-    ProbableEdgesCutSolver solver(graph, 60);
+    ProbableEdgesCutSolver solver(graph, 10);
     solver.solve();
     Edges cutEdges = solver.cutEdges();
     if (cutEdges.empty()) {
