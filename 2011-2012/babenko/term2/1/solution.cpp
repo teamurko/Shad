@@ -1,9 +1,12 @@
+#include <set>
 #include <queue>
 #include <iostream>
 #include <vector>
 #include <cassert>
 #include <algorithm>
 #include <utility>
+
+#define NDEBUG
 
 #define REQUIRE(cond, message) \
     if (!(cond)) { \
@@ -13,6 +16,8 @@
 
 typedef size_t Id;
 typedef std::vector<Id> Ids;
+
+const Id UNDEFINED = std::numeric_limits<Id>::max();
 
 struct Edge
 {
@@ -181,10 +186,10 @@ Edges to0Notation(Edges edges)
     return edges;
 }
 
-class ProbableEdgeCutSolver
+class ProbableEdgesCutSolver
 {
 public:
-    explicit ProbableEdgeCutSolver(const Graph& graph, size_t numBits = 60)
+    explicit ProbableEdgesCutSolver(const Graph& graph, size_t numBits = 60)
         : graph_(graph), numBits_(numBits)
     {
         REQUIRE(numBits <= 64, "Cannot handle more than 64 bits "
@@ -316,7 +321,7 @@ public:
     }
 
 private:
-    Graph graph_;
+    const Graph& graph_;
     size_t numBits_;
     std::vector<long long> edgesBits_;
     Graph::Arcs rootedSpanningTreeParents_;
@@ -326,11 +331,76 @@ private:
     Edges cutEdges_;
 };
 
+class EdgesCutSolver
+{
+public:
+    EdgesCutSolver(const Graph& graph)
+        : graph_(graph), up_(graph_.numVertices()),
+        id_(graph_.numVertices()), used_(graph_.numVertices()),
+        timer_(0)
+    {
+    }
+
+    void solve()
+    {
+        dfs(0, UNDEFINED);
+    }
+
+    void dfs(Id vertex, Id parent)
+    {
+        up_[vertex] = id_[vertex] = timer_++;
+        used_[vertex] = true;
+        const Graph::IncidentArcs& arcs = graph_.incidentArcs(vertex);
+        for (size_t index = 0; index < arcs.size(); ++index) {
+            const Arc& arc = arcs[index];
+            if (arc.to != parent) {
+                if (used_[arc.to]) {
+                    up_[vertex] = std::min(up_[vertex], id_[arc.to]);
+                } else {
+                    dfs(arc.to, vertex);
+                    up_[vertex] = std::min(up_[vertex], up_[arc.to]);
+                    if (up_[arc.to] > id_[vertex]) {
+                        cutEdges_.push_back(graph_.edges()[arc.id]);
+                    }
+                }
+            }
+        }
+    }
+
+    const Edges& cutEdges() const
+    {
+        return cutEdges_;
+    }
+
+private:
+    const Graph& graph_;
+    Ids up_;
+    Ids id_;
+    std::vector<bool> used_;
+    Id timer_;
+    Edges cutEdges_;
+};
+
+Ids extractIdsSorted(const Edges& edges)
+{
+    Ids result;
+    result.reserve(edges.size());
+    for (size_t index = 0; index < edges.size(); ++index) {
+        result.push_back(edges[index].id);
+    }
+    std::sort(result.begin(), result.end());
+    return result;
+}
+
+bool checkSameEdges(const Edges& first, const Edges& second)
+{
+    return extractIdsSorted(first) == extractIdsSorted(second);
+}
 
 void solve(size_t numVertices, const Edges& edges)
 {
     Graph graph(numVertices, edges);
-    ProbableEdgeCutSolver solver(graph, 60);
+    ProbableEdgesCutSolver solver(graph, 60);
     solver.solve();
     Edges cutEdges = solver.cutEdges();
     if (cutEdges.empty()) {
@@ -344,14 +414,87 @@ void solve(size_t numVertices, const Edges& edges)
     }
 }
 
+void testWithRandomGraph()
+{
+    size_t n = rand() % 1000 + 10;
+    DisjointSet ds(n);
+    std::set<std::pair<Id, Id> > used;
+    Edges edges;
+    while (!ds.hasOneGroup()) {
+        Id u = rand() % n;
+        Id v = rand() % n;
+        if (u == v) {
+            continue;
+        }
+        if (ds.groupId(u) == ds.groupId(v)) {
+            continue;
+        }
+        if (used.count(std::make_pair(u, v))) {
+            continue;
+        }
+        used.insert(std::make_pair(u, v));
+        used.insert(std::make_pair(v, u));
+        size_t w = rand() % 100;
+        Edge edge = {u, v, w, edges.size()};
+        edges.push_back(edge);
+        ds.merge(u, v);
+    }
+    size_t rest = (n - 1) * (n - 2) / 2;
+    size_t numAdd = rand() % rest;
+    for (size_t index = 0; index < numAdd; ++index) {
+        Id u = rand() % n;
+        Id v = rand() % n;
+        if (u == v) {
+            continue;
+        }
+        if (used.count(std::make_pair(u, v))) {
+            continue;
+        }
+        used.insert(std::make_pair(u, v));
+        used.insert(std::make_pair(v, u));
+        size_t w = rand() % 100;
+        Edge edge = {u, v, w, edges.size()};
+        edges.push_back(edge);
+    }
+    Graph graph(n, edges);
+    ProbableEdgesCutSolver psolver(graph, 60);
+    psolver.solve();
+    EdgesCutSolver solver(graph);
+    solver.solve();
+    if (!checkSameEdges(psolver.cutEdges(), solver.cutEdges())) {
+        std::cerr << "Cut edges provided by probable solution "
+                  << "differ from ones provided by deterministic solution";
+        std::cerr << "Edges : " << std::endl;
+        for (size_t i = 0; i < edges.size(); ++i) {
+            const Edge& edge = edges[i];
+            std::cerr << edge.first << " " << edge.second << std::endl;
+        }
+        std::cerr << "Cut edges probable : " << std::endl;
+        for (size_t i = 0; i < psolver.cutEdges().size(); ++i) {
+            std::cerr << psolver.cutEdges()[i].id << std::endl;
+        }
+        std::cerr << "Cut edges : " << std::endl;
+        for (size_t i = 0; i < solver.cutEdges().size(); ++i) {
+            std::cerr << solver.cutEdges()[i].id << std::endl;
+        }
+        exit(1);
+    }
+}
+
 int main()
 {
     std::ios_base::sync_with_stdio(false);
 
+#ifdef DEBUG
+    for (size_t testIndex = 0; testIndex < 100; ++testIndex) {
+        testWithRandomGraph();
+    }
+#else
     size_t numVertices;
     Edges edges;
     readData(numVertices, &edges);
     solve(numVertices, to0Notation(edges));
+#endif
 
     return 0;
 }
