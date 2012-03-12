@@ -47,6 +47,7 @@ public:
             groupIds_[index] = index;
         }
     }
+
     void merge(Id first, Id second)
     {
         first = groupId(first);
@@ -58,6 +59,7 @@ public:
             groupIds_[second] = first;
         }
     }
+
     Id groupId(Id one)
     {
         if (groupIds_[one] != one) {
@@ -65,6 +67,7 @@ public:
         }
         return groupIds_[one];
     }
+
     bool hasOneGroup()
     {
         REQUIRE(!groupIds_.empty(), "Disjoint set is empty,"
@@ -77,6 +80,7 @@ public:
         }
         return true;
     }
+
 private:
     Ids groupIds_;
 };
@@ -118,29 +122,6 @@ public:
         return edges_;
     }
 
-    // Returns spanning tree edges as the first element of
-    // the resulting pair, and returns other edges as the second
-    // element.
-    std::pair<Edges, Edges> spanningTree() const
-    {
-        Edges spanningEdges;
-        Edges others;
-        DisjointSet dset(numVertices());
-        for (size_t edgeId = 0; edgeId < edges_.size(); ++edgeId) {
-            const Edge& edge = edges_[edgeId];
-            if (dset.groupId(edge.first) != dset.groupId(edge.second)) {
-                spanningEdges.push_back(edge);
-                dset.merge(edge.first, edge.second);
-            }
-            else {
-                others.push_back(edge);
-            }
-        }
-        REQUIRE(dset.hasOneGroup(),
-                "Spanning edges do not form connected graph.");
-        return std::make_pair(spanningEdges, others);
-    }
-
 private:
     void buildGraph()
     {
@@ -163,6 +144,30 @@ private:
     const Edges edges_;
     std::vector<IncidentArcs> graph_;
 };
+
+// Returns spanning tree edges as the first element of
+// the resulting pair, and returns other edges as the second
+// element.
+std::pair<Edges, Edges> spanningTree(const Graph& graph) const
+{
+    Edges spanningEdges;
+    Edges others;
+    DisjointSet dset(graph.numVertices());
+    const Edges& edges = graph.edges();
+    for (size_t edgeId = 0; edgeId < edges.size(); ++edgeId) {
+        const Edge& edge = edges[edgeId];
+        if (dset.groupId(edge.first) != dset.groupId(edge.second)) {
+            spanningEdges.push_back(edge);
+            dset.merge(edge.first, edge.second);
+        }
+        else {
+            others.push_back(edge);
+        }
+    }
+    REQUIRE(dset.hasOneGroup(),
+            "Spanning edges do not form connected graph.");
+    return std::make_pair(spanningEdges, others);
+}
 
 void readData(size_t& numVertices, Edges* edges)
 {
@@ -187,10 +192,10 @@ Edges to0Notation(Edges edges)
     return edges;
 }
 
-class ProbableEdgesCutSolver
+class ProbabilisticEdgesCutSolver
 {
 public:
-    explicit ProbableEdgesCutSolver(const Graph& graph, size_t numBits = 60)
+    explicit ProbabilisticEdgesCutSolver(const Graph& graph, size_t numBits = 60)
         : graph_(graph), numBits_(numBits)
     {
         REQUIRE(numBits <= 64, "Cannot handle more than 64 bits "
@@ -200,7 +205,7 @@ public:
     void solve()
     {
         buildRootedSpanningTree();
-        generateUniRandPartialCirculations();
+        generateUniformRandomPartialCirculations();
         completeBinaryCirculations();
         collectCutEdges();
     }
@@ -221,26 +226,18 @@ public:
         std::vector<long long> vertexDegreeParity(graph_.numVertices());
         for (size_t index = 0; index < nonTreeEdges_.size(); ++index) {
             const Edge& edge = nonTreeEdges_[index];
-            for (size_t bit = 0; bit < numBits_; ++bit) {
-                if (takeBit(edgesBits_[edge.id], bit)) {
-                    xorBit(vertexDegreeParity[edge.first], bit);
-                    xorBit(vertexDegreeParity[edge.second], bit);
-                }
-            }
+            vertexDegreeParity[edge.first] ^= edgesBits_[edge.id];
+            vertexDegreeParity[edge.second] ^= edgesBits_[edge.id];
         }
         for (size_t index = 0; index < orderedVertices_.size(); ++index) {
             Id vertex = orderedVertices_[index];
             if (vertex == root_) {
                 checkBinaryCirculations(vertexDegreeParity);
             } else {
-                for (size_t bit = 0; bit < numBits_; ++bit) {
-                    if (takeBit(vertexDegreeParity[vertex], bit)) {
-                        xorBit(vertexDegreeParity[vertex], bit);
-                        const Arc& arc = rootedSpanningTreeParents_[vertex];
-                        xorBit(vertexDegreeParity[arc.to], bit);
-                        xorBit(edgesBits_[arc.id], bit);
-                    }
-                }
+                const Arc& arc = rootedSpanningTreeParents_[vertex];
+                vertexDegreeParity[arc.to] ^= vertexDegreeParity[vertex];
+                edgesBits_[arc.id] ^= vertexDegreeParity[vertex];
+                vertexDegreeParity[vertex] ^= vertexDegreeParity[vertex];
             }
         }
     }
@@ -252,12 +249,6 @@ public:
             REQUIRE(!takeBit(vertexDegreeParity[root_], bit),
                     "Completed circulation " << bit << " is not binary.");
         }
-    }
-
-    void xorBit(long long& bitset, size_t index)
-    {
-        REQUIRE(index < 64, "Bitset index is out of range");
-        bitset ^= 1LL << index;
     }
 
     bool takeBit(long long bitset, size_t index)
@@ -280,7 +271,7 @@ public:
 
     void buildRootedSpanningTree()
     {
-        std::pair<Edges, Edges> result = graph_.spanningTree();
+        std::pair<Edges, Edges> result = spanningTree(graph_);
         nonTreeEdges_ = result.second;
         Graph tree(graph_.numVertices(), result.first);
         buildRootedTree(tree);
@@ -398,18 +389,28 @@ bool checkSameEdges(const Edges& first, const Edges& second)
     return extractIdsSorted(first) == extractIdsSorted(second);
 }
 
-void solve(size_t numVertices, const Edges& edges)
+void solve(size_t numVertices, const Edges& edges, Edges* cutEdges)
 {
     Graph graph(numVertices, edges);
-    ProbableEdgesCutSolver solver(graph, 10);
+    ProbabilisticEdgesCutSolver solver(graph, 10);
     solver.solve();
-    Edges cutEdges = solver.cutEdges();
+    *cutEdges = solver.cutEdges();
+}
+
+void writeData(const Edges& cutEdges)
+{
     if (cutEdges.empty()) {
         std::cout << -1 << std::endl;
     } else {
-        size_t minWeight = 1e9 + 111;
+        size_t minWeight;
+        bool initialized = false;
         for (size_t index = 0; index < cutEdges.size(); ++index) {
-            minWeight = std::min(minWeight, cutEdges[index].weight);
+            if (!initialized) {
+                minWeight = cutEdges[index].weight;
+                initialized = true;
+            } else {
+                minWeight = std::min(minWeight, cutEdges[index].weight);
+            }
         }
         std::cout << minWeight << std::endl;
     }
@@ -458,7 +459,7 @@ void testWithRandomGraph()
         edges.push_back(edge);
     }
     Graph graph(numVertices, edges);
-    ProbableEdgesCutSolver psolver(graph, 60);
+    ProbabilisticEdgesCutSolver psolver(graph, 60);
     psolver.solve();
     EdgesCutSolver solver(graph);
     solver.solve();
@@ -494,7 +495,9 @@ int main()
     size_t numVertices;
     Edges edges;
     readData(numVertices, &edges);
-    solve(numVertices, to0Notation(edges));
+    Edges cutEdges;
+    solve(numVertices, to0Notation(edges), &cutEdges);
+    writeData(cutEdges);
 #endif
 
     return 0;
