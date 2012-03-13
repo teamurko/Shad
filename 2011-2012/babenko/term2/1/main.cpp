@@ -180,7 +180,8 @@ void readData(size_t& numVertices, Edges* edges)
     for (Id index = 0; index < numEdges; ++index) {
         Edge edge;
         std::cin >> edge.first >> edge.second >> edge.weight;
-        --edge.first, --edge.second;
+        --edge.first;
+        --edge.second;
         edge.id = index;
         edges->push_back(edge);
     }
