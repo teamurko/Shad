@@ -10,10 +10,12 @@
 #define NDEBUG
 
 #define REQUIRE(cond, message) \
-    if (!(cond)) { \
-        std::cerr << message << std::endl; \
-        assert(false); \
-    }
+    do { \
+        if (!(cond)) { \
+            std::cerr << message << std::endl; \
+            assert(false); \
+        } \
+    } while (false);
 
 typedef size_t Id;
 typedef std::vector<Id> Ids;
@@ -148,7 +150,7 @@ private:
 // Returns spanning tree edges as the first element of
 // the resulting pair, and returns other edges as the second
 // element.
-std::pair<Edges, Edges> spanningTree(const Graph& graph) const
+std::pair<Edges, Edges> spanningTree(const Graph& graph)
 {
     Edges spanningEdges;
     Edges others;
@@ -178,18 +180,10 @@ void readData(size_t& numVertices, Edges* edges)
     for (Id index = 0; index < numEdges; ++index) {
         Edge edge;
         std::cin >> edge.first >> edge.second >> edge.weight;
+        --edge.first, --edge.second;
         edge.id = index;
         edges->push_back(edge);
     }
-}
-
-Edges to0Notation(Edges edges)
-{
-    for (Id index = 0; index < edges.size(); ++index) {
-        --edges[index].first;
-        --edges[index].second;
-    }
-    return edges;
 }
 
 class ProbabilisticEdgesCutSolver
@@ -257,7 +251,7 @@ public:
         return (bitset >> index) & 1;
     }
 
-    void generateUniRandPartialCirculations()
+    void generateUniformRandomPartialCirculations()
     {
         edgesBits_.resize(graph_.numEdges());
         for (size_t index = 0; index < nonTreeEdges_.size(); ++index) {
@@ -402,15 +396,9 @@ void writeData(const Edges& cutEdges)
     if (cutEdges.empty()) {
         std::cout << -1 << std::endl;
     } else {
-        size_t minWeight;
-        bool initialized = false;
-        for (size_t index = 0; index < cutEdges.size(); ++index) {
-            if (!initialized) {
-                minWeight = cutEdges[index].weight;
-                initialized = true;
-            } else {
-                minWeight = std::min(minWeight, cutEdges[index].weight);
-            }
+        size_t minWeight = cutEdges.back().weight;
+        for (size_t index = 0; index + 1 < cutEdges.size(); ++index) {
+            minWeight = std::min(minWeight, cutEdges[index].weight);
         }
         std::cout << minWeight << std::endl;
     }
@@ -496,7 +484,7 @@ int main()
     Edges edges;
     readData(numVertices, &edges);
     Edges cutEdges;
-    solve(numVertices, to0Notation(edges), &cutEdges);
+    solve(numVertices, edges, &cutEdges);
     writeData(cutEdges);
 #endif
 
