@@ -100,7 +100,7 @@ public class PageDownloader {
 				URL page = new URL(url);
 				String content = getContent(page);
 				if (content != null) {
-					//output.write(page + "\t" + content + "\n");
+					output.write(page + "\t" + content + "\n");
 				}
 			} catch (MalformedURLException e) {
 				e.printStackTrace();

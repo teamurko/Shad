@@ -16,12 +16,9 @@ public class BFSTaskManager {
 		this.maxDistance =  maxDistance;
 	}
 	
-	public synchronized void add(Task task) {
-		System.err.println("Manager add " + task);
+	public void add(Task task) {
 		queue.add(task);
-		System.err.println("Added to queue");
 		task.setManager(this);
-		System.err.println("Task " + task + " is added to task manager");
 		synchronized (distanceAudit) {
 			if (distanceAudit.containsKey(task.getDistance())) {
 				Integer value = distanceAudit.get(task.getDistance());
@@ -30,10 +27,10 @@ public class BFSTaskManager {
 				distanceAudit.put(task.getDistance(), 1);
 			}
 		}
-		System.err.println("Finished add");
+		System.err.println("Task " + task + " is added to task manager");
 	}
 	
-	public synchronized Task next() {
+	public Task next() {
 		try {
 			while (true) {
 				synchronized (distance) {
@@ -50,8 +47,8 @@ public class BFSTaskManager {
 						if (task.getDistance() == distance.intValue()) {
 							return task;
 						}
-						Thread.sleep(100);
 					}
+					Thread.sleep(100);
 				}
 			}
 		} catch (InterruptedException e) {

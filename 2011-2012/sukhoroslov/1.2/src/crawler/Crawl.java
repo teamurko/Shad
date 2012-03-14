@@ -1,23 +1,15 @@
 package crawler;
 
-import java.util.ArrayList;
-import java.util.List;
-
 public class Crawl {
 
 	public static void main(String[] args) {
-		/*
 		String startUrl = args[0];
 		int depth = Integer.parseInt(args[1]);
 		int crawlersNumber = Integer.parseInt(args[2]);
 		String saveDataFilename = args[3];
-		*/
-		String startUrl = "http://yandex.ru";
-		int depth = 1;
-		int crawlersNumber = 2;
-		String saveDataFilename = "data";
+		long startTime = System.currentTimeMillis();
 		if (depth < 0) {
-			throw new RuntimeException("Depth should be >=0 ");
+			throw new RuntimeException("Depth should be >= 0");
 		}
 		BFSTaskManager taskManager = new BFSTaskManager(depth);
 		taskManager.add(new Task(startUrl, 0));
@@ -37,6 +29,7 @@ public class Crawl {
 				e.printStackTrace();
 			}
 		}
+		System.err.println("Time passed : " + (System.currentTimeMillis() - startTime));
 	}
 
 }

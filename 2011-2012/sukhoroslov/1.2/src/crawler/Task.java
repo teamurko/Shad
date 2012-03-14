@@ -4,7 +4,6 @@ public class Task {
 	Task(String url, int distance) {
 		this.setUrl(url);
 		this.setDistance(distance);
-		System.err.println("Created task");
 	}
 	
 	public void setUrl(String url) {

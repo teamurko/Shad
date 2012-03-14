@@ -35,14 +35,15 @@ public class Crawler implements Runnable {
 			List<String> adjacentUrls = adjacentUrls(task.getUrl());
 			if (adjacentUrls != null) {
 				for (String url : adjacentUrls) {
-					System.err.println("Adding url " + url);
-					taskManager.add(new Task(url, task.getDistance() + 1));
+					Task nextTask = new Task(url, task.getDistance() + 1);
+		 			taskManager.add(nextTask);
 				}
 			}
 			task.done();
 			System.err.println("Crawler " + id + " done task " + task);
 			downloader.add(task.getUrl());
 		}
+		System.err.println("Crawler " + id + " finished its work");
 	}
 	
 	//FIX copy-paste
