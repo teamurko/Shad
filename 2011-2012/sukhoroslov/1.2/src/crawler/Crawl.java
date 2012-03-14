@@ -7,6 +7,7 @@ public class Crawl {
 		int depth = Integer.parseInt(args[1]);
 		int crawlersNumber = Integer.parseInt(args[2]);
 		String saveDataFilename = args[3];
+		boolean save = Boolean.parseBoolean(args[4]);
 		long startTime = System.currentTimeMillis();
 		if (depth < 0) {
 			throw new RuntimeException("Depth should be >= 0");
@@ -14,7 +15,7 @@ public class Crawl {
 		BFSTaskManager taskManager = new BFSTaskManager(depth);
 		taskManager.add(new Task(startUrl, 0));
 		UrlSeenChecker urlChecker = new UrlSeenChecker();
-		PageDownloader pageDownloader = new PageDownloader(saveDataFilename);
+		PageDownloader pageDownloader = new PageDownloader(saveDataFilename, save);
 		Crawler[] crawlers = new Crawler[crawlersNumber];
 		Thread[] threads = new Thread[crawlersNumber];
 		for (int i = 0; i < crawlersNumber; ++i) {

@@ -17,6 +17,9 @@ public class BFSTaskManager {
 	}
 	
 	public void add(Task task) {
+		if (task.getDistance() > maxDistance) {
+			return;
+		}
 		queue.add(task);
 		task.setManager(this);
 		synchronized (distanceAudit) {

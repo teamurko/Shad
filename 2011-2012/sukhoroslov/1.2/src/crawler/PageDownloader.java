@@ -17,7 +17,7 @@ import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
 
 public class PageDownloader {
-	PageDownloader(String filename) {
+	PageDownloader(String filename, boolean save) {
 		urlQueue = new LinkedBlockingQueue<String>();
 		File dataFile = new File(filename);
 		BufferedWriter output = null;
@@ -28,17 +28,9 @@ public class PageDownloader {
 			e.printStackTrace();
 		} catch (FileNotFoundException e) {
 			e.printStackTrace();
-		} finally {
-			if (output != null) {
-				try {
-					output.close();
-				} catch (IOException e) {
-					e.printStackTrace();
-				}
-			}
 		}
 		//TODO move to separate method
-		new Thread(new Downloader(output, urlQueue)).start();
+		new Thread(new Downloader(output, urlQueue, save)).start();
 	}
 	
 	public void add(String url) {
@@ -47,15 +39,16 @@ public class PageDownloader {
 
 	
 	private class Downloader implements Runnable {
-		Downloader(final BufferedWriter output, final BlockingQueue<String> queue) {
+		Downloader(BufferedWriter output, BlockingQueue<String> queue, boolean save) {
 			this.queue = queue;
 			this.output = output;
+			this.save = save;
 		}
 		
 		public void run() {
 			try {
 				while (true) {
-					String url = queue.poll(5000, TimeUnit.MILLISECONDS);
+					String url = queue.poll(1000, TimeUnit.MILLISECONDS);
 					if (url == null) {
 						break;
 					}
@@ -63,7 +56,13 @@ public class PageDownloader {
 				}
 			} catch (InterruptedException e) {
 				e.printStackTrace();
-			}	
+			} finally {
+				try {
+					output.close();
+				} catch (IOException e) {
+					e.printStackTrace();
+				}
+			}
 		}
 		
 		private String getContent(URL url) {
@@ -99,7 +98,7 @@ public class PageDownloader {
 			try {
 				URL page = new URL(url);
 				String content = getContent(page);
-				if (content != null) {
+				if (content != null && save) {
 					output.write(page + "\t" + content + "\n");
 				}
 			} catch (MalformedURLException e) {
@@ -111,6 +110,7 @@ public class PageDownloader {
 		
 		BlockingQueue<String> queue;
 		BufferedWriter output;
+		boolean save;
 	}
 
 	private BlockingQueue<String> urlQueue;
