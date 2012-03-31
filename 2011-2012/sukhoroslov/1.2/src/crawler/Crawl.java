@@ -3,6 +3,10 @@ package crawler;
 public class Crawl {
 
 	public static void main(String[] args) {
+		if (args.length != 5) {
+			System.err.println("Usage: java Crawl start-url depth crawlers-number save-data-file save-content-flag");
+			return;
+		}
 		String startUrl = args[0];
 		int depth = Integer.parseInt(args[1]);
 		int crawlersNumber = Integer.parseInt(args[2]);
@@ -23,6 +27,7 @@ public class Crawl {
 			threads[i] = new Thread(crawlers[i]);
 			threads[i].start();
 		}
+		pageDownloader.start();
 		for (Thread thread : threads) {
 			try {
 				thread.join();
