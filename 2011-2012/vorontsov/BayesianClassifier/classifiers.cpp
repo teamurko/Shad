@@ -25,14 +25,20 @@ double OneDimSamplingProbability::operator()(Feature x) const
 }
 
 MultiDimSamplingProbability::MultiDimSamplingProbability(
-        const std::vector<Object>& sampleSet, double windowWidth)
+        const std::vector<Object>& sampleSet,
+        const std::vector<double>& featureWeights,
+        double windowWidth)
 {
     REQUIRE(!sampleSet.empty(), "Provide non empty sample set");
-    size_t numFeatures = sampleSet.back().size();
+    REQUIRE(featureWeights.size() == sampleSet.back().size(),
+            "Feature weights collection size should equal "
+            << "object features number");
+    size_t numFeatures = featureWeights.size();
     for (size_t index = 0; index < numFeatures; ++index) {
         oneDimProbabilities_.push_back(
                 OneDimSamplingProbability(
-                    nthFeature(sampleSet, index), windowWidth));
+                    nthFeature(sampleSet, index),
+                    windowWidth / 50.0 / featureWeights[index]));
     }
 }
 
@@ -83,16 +89,16 @@ void NaiveBayesClassifier::calculateFeatureWeights(const Dataset& dataset)
         for (size_t index = 0; index < dataset.size(); ++index) {
             objects[index] = dataset[index].features[featureIndex];
         }
-        featureWeights_.push_back(calculateWindowWidth(objects));
+        featureWeights_.push_back(calculateFeatureWeight(objects));
     }
 }
 
-double NaiveBayesClassifier::calculateWindowWidth(
+double NaiveBayesClassifier::calculateFeatureWeight(
                              const std::vector<Feature>& objects) const
 {
     double rangeLength = *std::max_element(objects.begin(), objects.end()) -
                          *std::min_element(objects.begin(), objects.end());
-    return rangeLength * 100.0 / objects.size();
+    return 1.0 / (1.0 + rangeLength);
 }
 
 void NaiveBayesClassifier::learn(const Dataset& dataset)
@@ -121,8 +127,9 @@ void NaiveBayesClassifier::learn(const Dataset& dataset)
     BOOST_FOREACH(const MapElementValue& item, classElementsNumber) {
         samplingProbability_.insert(
                 std::make_pair(item.first,
-                               MultiDimSamplingProbability(
-                                    objectsByClass(dataset, item.first), 4)));
+                        MultiDimSamplingProbability(
+                            objectsByClass(dataset, item.first),
+                            featureWeights_, 0.7)));
     }
 }
 

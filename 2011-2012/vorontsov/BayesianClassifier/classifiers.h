@@ -34,8 +34,10 @@ class OneDimSamplingProbability
 {
 public:
     explicit OneDimSamplingProbability(const std::vector<Feature>& sample,
-                                       double windowWidth = 1.0)
-        : sample_(sample), windowWidth_(windowWidth) { }
+                                       double windowWidth)
+        : sample_(sample), windowWidth_(windowWidth)
+    {
+    }
 
     double operator()(Feature x) const;
 
@@ -48,7 +50,9 @@ class MultiDimSamplingProbability
 {
 public:
     explicit MultiDimSamplingProbability(
-            const std::vector<Object>& sampleSet, double windowWidth = 1.0);
+            const std::vector<Object>& sampleSet,
+            const std::vector<double>& featureWeights,
+            double windowWidth = 1.0);
 
     double operator()(const Object& object) const;
 
@@ -78,7 +82,7 @@ private:
 
     void calculateFeatureWeights(const Dataset& dataset);
 
-    double calculateWindowWidth(const std::vector<Feature>& objects) const;
+    double calculateFeatureWeight(const std::vector<Feature>& objects) const;
 
     std::vector<double> featureWeights_;
     std::vector<ClassLabel> classLabels_;

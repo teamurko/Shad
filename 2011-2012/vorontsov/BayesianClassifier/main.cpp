@@ -26,9 +26,9 @@ int main(int argc, char** argv)
     classifier.classify(&test);
     BOOST_FOREACH(const LabeledObject& object, test) {
         const Features& features = object.features;
-        BOOST_FOREACH(Feature feature, features) {
-            std::cout << feature << ",";
-        }
+//        BOOST_FOREACH(Feature feature, features) {
+//            std::cout << feature << ",";
+//        }
         std::cout << object.class_label << std::endl;
     }
 
