@@ -21,7 +21,7 @@ int main(int argc, char** argv)
     Dataset test;
     loadDataset(trainSetFilename, true, &train);
     loadDataset(testSetFilename, false, &test);
-    NaiveBayesClassifier classifier;
+    ParzenWindowClassifier classifier(2.4);
     classifier.learn(train);
     classifier.classify(&test);
     BOOST_FOREACH(const LabeledObject& object, test) {

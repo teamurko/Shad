@@ -19,13 +19,16 @@ int main(int argc, char** argv)
     Dataset train;
     loadDataset(trainSetFilename, true, &train);
 
-    NaiveBayesClassifier classifier;
     PredictionQuality quality;
-    std::cerr << "Train quality : "
-              << quality.rateTraining(train, classifier) << std::endl;
-    std::cerr << "Q-fold quality : "
-              << quality.rateQFold(train, classifier, train.size() / 4)
-              << std::endl;
+    for (double h = 2.4; h < 2.5; h += 0.1) {
+        std::cerr << "Window width : " << h << std::endl;
+        ParzenWindowClassifier classifier(h);
+        std::cerr << "Train quality : "
+                  << quality.rateTraining(train, classifier) << std::endl;
+        std::cerr << "Q-fold quality : "
+                  << quality.rateQFold(train, classifier, train.size() / 4)
+                  << std::endl;
+    }
 //    std::cerr << "LOO quality : " << quality.rateLOO(train, classifier, 10)
 //              << std::endl;
 
