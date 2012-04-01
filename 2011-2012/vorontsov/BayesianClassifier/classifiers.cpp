@@ -73,12 +73,43 @@ std::vector<double> MultiDimSamplingProbability::nthFeature(
     return result;
 }
 
+void NaiveBayesClassifier::calculateFeatureWeights(const Dataset& dataset)
+{
+    REQUIRE(!dataset.empty(), "Dataset is empty");
+    size_t numFeatures = dataset.back().features.size();
+    for (size_t featureIndex = 0; featureIndex < numFeatures;
+                                                    ++featureIndex) {
+        std::vector<Feature> objects(dataset.size());
+        for (size_t index = 0; index < dataset.size(); ++index) {
+            objects[index] = dataset[index].features[featureIndex];
+        }
+        featureWeights_.push_back(calculateWindowWidth(objects));
+    }
+}
+
+double NaiveBayesClassifier::calculateWindowWidth(
+                             const std::vector<Feature>& objects) const
+{
+    double rangeLength = *std::max_element(objects.begin(), objects.end()) -
+                         *std::min_element(objects.begin(), objects.end());
+    return rangeLength * 100.0 / objects.size();
+}
+
 void NaiveBayesClassifier::learn(const Dataset& dataset)
 {
+    featureWeights_.clear();
+    classProbability_.clear();
+    classWeight_.clear();
+    classLabels_.clear();
+    samplingProbability_.clear();
+
+    calculateFeatureWeights(dataset);
+
     std::map<ClassLabel, int> classElementsNumber;
     BOOST_FOREACH(const LabeledObject& object, dataset) {
         ++classElementsNumber[object.class_label];
     }
+
     typedef std::map<ClassLabel, int>::value_type MapElementValue;
     BOOST_FOREACH(const MapElementValue& item, classElementsNumber) {
         classProbability_[item.first] =
@@ -86,11 +117,12 @@ void NaiveBayesClassifier::learn(const Dataset& dataset)
         classWeight_[item.first] = 1.0; // default, change it
         classLabels_.push_back(item.first);
     }
+
     BOOST_FOREACH(const MapElementValue& item, classElementsNumber) {
         samplingProbability_.insert(
                 std::make_pair(item.first,
                                MultiDimSamplingProbability(
-                                    objectsByClass(dataset, item.first))));
+                                    objectsByClass(dataset, item.first), 4)));
     }
 }
 

@@ -1,3 +1,6 @@
+#ifndef CLASSIFIERS_H
+#define CLASSIFIERS_H
+
 #include "classifier_interface.h"
 
 // 1) Naive Bayes
@@ -16,6 +19,8 @@
         std::cerr << message << std::endl; \
         assert(false); \
     }
+
+typedef int ClassLabel;
 
 template <class Key, class Value>
 const Value& mapAt(const std::map<Key, Value>& map, const Key& key)
@@ -63,8 +68,6 @@ public:
     virtual void learn(const Dataset& dataset);
     virtual void classify(Dataset* dataset);
 private:
-    typedef int ClassLabel;
-
     static std::vector<Object> objectsByClass(
             const Dataset& dataset, ClassLabel label);
 
@@ -73,9 +76,15 @@ private:
 
     void classify(LabeledObject* object) const;
 
+    void calculateFeatureWeights(const Dataset& dataset);
+
+    double calculateWindowWidth(const std::vector<Feature>& objects) const;
+
+    std::vector<double> featureWeights_;
     std::vector<ClassLabel> classLabels_;
     std::map<ClassLabel, double> classWeight_;
     std::map<ClassLabel, double> classProbability_;
     std::map<ClassLabel, MultiDimSamplingProbability> samplingProbability_;
 };
 
+#endif

@@ -1,5 +1,5 @@
-#ifndef CLASSIFIER_INTERFACE_H__
-#define CLASSIFIER_INTERFACE_H__
+#ifndef CLASSIFIER_INTERFACE_H
+#define CLASSIFIER_INTERFACE_H
 
 #include <vector>
 #include <string>
