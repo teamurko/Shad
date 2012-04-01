@@ -229,6 +229,21 @@ double ParzenWindowClassifier::calculateFeatureWeight(
     return 1.0 / (1.0 + rangeLength);
 }
 
+double ParzenWindowClassifier::average(
+        ClassLabel label, size_t featureIndex) const
+{
+    size_t size = 0;
+    double value = 0.0;
+    BOOST_FOREACH(const LabeledObject& object, dataset_) {
+        if (object.class_label == label) {
+            value += object.features[featureIndex] *
+                     featureWeights_[featureIndex];
+            ++size;
+        }
+    }
+    return value / size;
+}
+
 void ParzenWindowClassifier::learn(const Dataset& dataset)
 {
     dataset_ = dataset;
@@ -239,6 +254,28 @@ void ParzenWindowClassifier::learn(const Dataset& dataset)
     classLabels_.clear();
 
     calculateFeatureWeights(dataset);
+    if (featureWeights_.size() >= 0) {
+        std::vector<double> t(featureWeights_.size());
+        for (size_t i = 0; i < t.size(); ++i) {
+            double a1 = average(0, i);
+            double a2 = average(1, i);
+            t[i] = fabs(a1 - a2);
+        }
+        for (size_t i = 0; i < t.size(); ++i) {
+            featureWeights_[i] *= t[i];
+    //        std::cerr << featureWeights_[i] << std::endl;
+        }
+    }
+    /*
+    BOOST_FOREACH(const LabeledObject& object, dataset) {
+        Object obj = object.features;
+        for (size_t i = 0; i < obj.size(); ++i) {
+            obj[i] *= featureWeights_[i];
+            std::cerr << obj[i] << " ";
+        }
+        std::cerr << std::endl;
+    }
+    */
 
     std::map<ClassLabel, int> classElementsNumber;
     BOOST_FOREACH(const LabeledObject& object, dataset) {

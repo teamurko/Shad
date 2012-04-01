@@ -113,6 +113,8 @@ private:
 
     double calculateFeatureWeight(const std::vector<Feature>& objects) const;
 
+    double average(ClassLabel label, size_t featureIndex) const;
+
     double kernelE(double x) const;
 
     double distance(const Object& x, const Object& y) const;

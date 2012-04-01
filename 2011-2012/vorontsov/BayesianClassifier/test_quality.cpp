@@ -20,9 +20,10 @@ int main(int argc, char** argv)
     loadDataset(trainSetFilename, true, &train);
 
     PredictionQuality quality;
-    for (double h = 2.4; h < 2.5; h += 0.1) {
+    for (double h = 0.46; h < 0.47; h += 0.02) {
         std::cerr << "Window width : " << h << std::endl;
         ParzenWindowClassifier classifier(h);
+        srand(1);
         std::cerr << "Train quality : "
                   << quality.rateTraining(train, classifier) << std::endl;
         std::cerr << "Q-fold quality : "
