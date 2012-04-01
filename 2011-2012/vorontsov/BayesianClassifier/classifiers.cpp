@@ -207,6 +207,14 @@ double ParzenWindowClassifier::kernelE(double x) const
     return 0.75 * fabs(1 - x * x);
 }
 
+double ParzenWindowClassifier::kernelQ(double x) const
+{
+    if (fabs(x) > 1) {
+        return 0.0;
+    }
+    return 15 * pow(1 - x * x, 2.0) / 16;
+}
+
 void ParzenWindowClassifier::calculateFeatureWeights(const Dataset& dataset)
 {
     REQUIRE(!dataset.empty(), "Dataset is empty");
@@ -336,7 +344,7 @@ double ParzenWindowClassifier::posteriorClassProbability(
     BOOST_FOREACH(const LabeledObject& labeledObject, dataset_) {
         if (labeledObject.class_label == label) {
             ++classSize;
-            result += kernelE(
+            result += kernelQ(
                     distance(object, labeledObject.features) / windowWidth_);
         }
     }

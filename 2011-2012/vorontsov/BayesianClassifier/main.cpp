@@ -5,12 +5,12 @@
 void printUsage(const std::string& name)
 {
     std::cerr << "Usage: " << name << " train-set-filename"
-              << " test-set-filename" << std::endl;
+              << " test-set-filename dataset(0|1)" << std::endl;
 }
 
 int main(int argc, char** argv)
 {
-    if (argc != 3) {
+    if (argc != 4) {
         printUsage(argv[0]);
         exit(1);
     }
@@ -21,15 +21,29 @@ int main(int argc, char** argv)
     Dataset test;
     loadDataset(trainSetFilename, true, &train);
     loadDataset(testSetFilename, false, &test);
-    ParzenWindowClassifier classifier(0.46);
-    classifier.learn(train);
-    classifier.classify(&test);
-    BOOST_FOREACH(const LabeledObject& object, test) {
-        const Features& features = object.features;
-//        BOOST_FOREACH(Feature feature, features) {
-//            std::cout << feature << ",";
-//        }
-        std::cout << object.class_label << std::endl;
+    if (argv[3][0] == '0') {
+        ParzenWindowClassifier classifier(0.5);
+        classifier.learn(train);
+        classifier.classify(&test);
+        BOOST_FOREACH(const LabeledObject& object, test) {
+            const Features& features = object.features;
+    //        BOOST_FOREACH(Feature feature, features) {
+    //            std::cout << feature << ",";
+    //        }
+            std::cout << object.class_label << std::endl;
+        }
+    }
+    else {
+        ParzenWindowClassifier classifier(0.56);
+        classifier.learn(train);
+        classifier.classify(&test);
+        BOOST_FOREACH(const LabeledObject& object, test) {
+            const Features& features = object.features;
+    //        BOOST_FOREACH(Feature feature, features) {
+    //            std::cout << feature << ",";
+    //        }
+            std::cout << object.class_label << std::endl;
+        }
     }
 
     return 0;

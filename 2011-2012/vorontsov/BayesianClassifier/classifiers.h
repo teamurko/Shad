@@ -117,6 +117,8 @@ private:
 
     double kernelE(double x) const;
 
+    double kernelQ(double x) const;
+
     double distance(const Object& x, const Object& y) const;
 
     double windowWidth_;

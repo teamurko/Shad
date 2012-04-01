@@ -20,7 +20,7 @@ int main(int argc, char** argv)
     loadDataset(trainSetFilename, true, &train);
 
     PredictionQuality quality;
-    for (double h = 0.46; h < 0.47; h += 0.02) {
+    for (double h = 0.53; h < 0.59; h += 0.005) {
         std::cerr << "Window width : " << h << std::endl;
         ParzenWindowClassifier classifier(h);
         srand(1);
