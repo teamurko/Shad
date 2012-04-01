@@ -5,22 +5,25 @@
 #include <string>
 
 typedef double Feature;
+typedef std::vector<Feature> Features;
 
-struct Object
+struct LabeledObject
 {
-    std::vector<Feature> features;
+    Features features;
     int class_label;
 };
 
-typedef std::vector<Object> Dataset;
+typedef Features Object;
 
-void LoadDataset(const std::string& filename, Dataset* dataset);
+typedef std::vector<LabeledObject> Dataset;
+
+void loadDataset(const std::string& filename, bool test, Dataset* dataset);
 
 class ClassifierInterface
 {
 public:
-    virtual void Learn(const Dataset& dataset) = 0;
-    virtual void Classify(Dataset* dataset) = 0;
+    virtual void learn(const Dataset& dataset) = 0;
+    virtual void classify(Dataset* dataset) = 0;
 };
 
 #endif

@@ -1,5 +1,5 @@
 all:
-	g++ -Wall bayes_classifier.cpp main.cpp -o main
+	g++ -Wall -I/opt/local/include classifiers.cpp main.cpp -o main
 
 clean:
 	rm main
