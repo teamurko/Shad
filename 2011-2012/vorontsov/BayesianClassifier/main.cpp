@@ -26,9 +26,6 @@ int main(int argc, char** argv)
         ParzenWindowClassifier classifier(0.5);
         classifier.learn(train);
         classifier.classify(&test);
-        BOOST_FOREACH(const LabeledObject& object, test) {
-            std::cout << object.class_label << std::endl;
-        }
     }
     else {
         ParzenWindowClassifier classifier(0.56);
