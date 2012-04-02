@@ -21,15 +21,12 @@ int main(int argc, char** argv)
     Dataset test;
     loadDataset(trainSetFilename, true, &train);
     loadDataset(testSetFilename, false, &test);
+
     if (argv[3][0] == '0') {
         ParzenWindowClassifier classifier(0.5);
         classifier.learn(train);
         classifier.classify(&test);
         BOOST_FOREACH(const LabeledObject& object, test) {
-            const Features& features = object.features;
-    //        BOOST_FOREACH(Feature feature, features) {
-    //            std::cout << feature << ",";
-    //        }
             std::cout << object.class_label << std::endl;
         }
     }
@@ -37,13 +34,10 @@ int main(int argc, char** argv)
         ParzenWindowClassifier classifier(0.56);
         classifier.learn(train);
         classifier.classify(&test);
-        BOOST_FOREACH(const LabeledObject& object, test) {
-            const Features& features = object.features;
-    //        BOOST_FOREACH(Feature feature, features) {
-    //            std::cout << feature << ",";
-    //        }
-            std::cout << object.class_label << std::endl;
-        }
+    }
+
+    BOOST_FOREACH(const LabeledObject& object, test) {
+        std::cout << object.class_label << std::endl;
     }
 
     return 0;
