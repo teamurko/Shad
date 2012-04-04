@@ -54,7 +54,7 @@ bool approximateEqual(const std::vector<Features>& first,
     return true;
 }
 
-double distance(const Features& first, const Features& second)
+double distance2(const Features& first, const Features& second)
 {
     REQUIRE(first.size() == second.size(),
             "Features sizes differ");
@@ -67,7 +67,16 @@ double distance(const Features& first, const Features& second)
 
 size_t findNearestIndex(const Objects& means, const Features& object)
 {
-
+    size_t nearestIndex = 0;
+    double bestDistance = distance2(means.at(nearestIndex), object);
+    for (size_t index = 0; index < means.size(); ++index) {
+        double candidateDistance = distance2(means.at(index), object);
+        if (bestDistance > candidateDistance) {
+            bestDistance = candidateDistance;
+            nearestIndex = index;
+        }
+    }
+    return nearestIndex;
 }
 
 void add(Features& first, const Features& second)
@@ -109,6 +118,7 @@ void kMeans(const std::vector<Features>& objects, size_t numClusters,
     chooseRandomMeans(objects, numClusters, &means);
     clusterIndex->resize(objects.size());
     bool areMeansChanged = true;
+    size_t iteration = 0;
     while (areMeansChanged) {
         for (size_t index = 0; index < objects.size(); ++index) {
             clusterIndex->at(index) = findNearestIndex(means, objects[index]);
@@ -118,6 +128,8 @@ void kMeans(const std::vector<Features>& objects, size_t numClusters,
         if (approximateEqual(means, updatedMeans)) {
             areMeansChanged = false;
         }
+        means = updatedMeans;
+        std::cerr << iteration++ << std::endl;
     }
 }
 
