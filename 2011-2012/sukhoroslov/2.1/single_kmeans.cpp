@@ -120,7 +120,8 @@ void kMeans(const std::vector<Features>& objects, size_t numClusters,
     bool areMeansChanged = true;
     size_t iteration = 0;
     while (areMeansChanged) {
-        for (size_t index = 0; index < objects.size(); ++index) {
+        for (int index = 0; index < static_cast<int>(objects.size());
+                                                                    ++index) {
             clusterIndex->at(index) = findNearestIndex(means, objects[index]);
         }
         std::vector<Features> updatedMeans(numClusters);
@@ -129,8 +130,9 @@ void kMeans(const std::vector<Features>& objects, size_t numClusters,
             areMeansChanged = false;
         }
         means = updatedMeans;
-        std::cerr << iteration++ << std::endl;
+        ++iteration;
     }
+    std::cerr << "Iterations made : " << iteration << std::endl;
 }
 
 void readData(std::vector<Features>* objects, size_t& numClusters)
