@@ -1,3 +1,4 @@
+#include <algorithm>
 #include <set>
 #include <queue>
 #include <iostream>
@@ -25,19 +26,20 @@ typedef std::vector<Production> Productions;
 
 bool isTerminal(char c)
 {
-    REQUIRE('a' <= c <= 'z' || 'A' <= c <= 'Z', "Unknown symbol : " << c);
-    return 'a' <= c <= 'z';
+    REQUIRE(('a' <= c && c <= 'z') || ('A' <= c && c <= 'Z'),
+            "Unknown symbol : " << c);
+    return 'a' <= c && c <= 'z';
 }
 
 size_t nonTerminalId(char c)
 {
-    REQUIRE('A' <= c <= 'Z', "Unknown non-terminal : " << c);
+    REQUIRE('A' <= c && c <= 'Z', "Unknown non-terminal : " << c);
     return c - 'A';
 }
 
 size_t terminalId(char c)
 {
-    REQUIRE('a' <= c <= 'z', "Unknown terminal : " << c);
+    REQUIRE('a' <= c && c <= 'z', "Unknown terminal : " << c);
     return c - 'a';
 }
 
@@ -138,10 +140,13 @@ void buildGraph(const Productions& prods, Graph* graph)
 {
     graph->clear();
     graph->reserve(ALPH_SIZE);
-    std::vector<std::set<size_t> > tempGraph;
+    std::vector<std::set<size_t> > tempGraph(ALPH_SIZE);
     for (size_t index = 0; index < prods.size(); ++index) {
         size_t to = nonTerminalId(prods[index].nonTerminal);
         const std::string& output = prods[index].output;
+        if (output == "$") {
+            continue;
+        }
         for (size_t outputIndex = 0; outputIndex < output.size();
                                      ++outputIndex) {
             if (!isTerminal(output[outputIndex])) {
@@ -179,7 +184,7 @@ void solve(const Productions& productions, std::string* answer)
         char lastLetter = output.at(output.size() - 1);
         if (lastLetter != '$' && isTerminal(lastLetter)) {
             size_t nonTerminal = nonTerminalId(prods[index].nonTerminal);
-            canStartWith[nonTerminal][terminalId(lastLetter)] = true;
+            canStartWith.at(nonTerminal).at(terminalId(lastLetter)) = true;
             if (!isInQueue[nonTerminal]) {
                 isInQueue[nonTerminal] = true;
                 updatedQueue.push(nonTerminal);
