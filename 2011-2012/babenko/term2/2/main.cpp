@@ -13,8 +13,7 @@
 
 const char EPSILON = '$';
 const size_t UNDEFINED = -2;
-const size_t NON_EXISTENT = -1;
-
+const size_t NONEXISTENT = -1;
 
 typedef size_t Id;
 typedef std::vector<Id> Ids;
@@ -39,113 +38,63 @@ struct Arc
 typedef std::vector<Arc> Arcs;
 typedef std::vector<Arcs> Graph;
 
-class Automaton {
+class GraphCondenser
+{
 public:
-    Automaton() : numVertices_(0), initVertex_(-1) { }
-
-    Automaton(int numVertices, const Edges& edges, Ids terminals)
-        : numVertices_(numVertices), initVertex_(0), edges_(edges),
-        graph_(numVertices), isTerminal_(numVertices)
+    explicit GraphCondenser(const Graph& graph) : graph_(graph)
     {
-        for (size_t edgeId = 0; edgeId < edges.size(); ++edgeId) {
-            const Edge& edge = edges[edgeId];
-            graph_[edge.from].push_back(Arc(edge.to, edge.label));
+        shrinkByEpsilonArcs();
+    }
+
+    Id componentIndex(Id vertex) const
+    {
+        return componentIndex_.at(vertex);
+    }
+
+    Graph condensedGraph() const
+    {
+        Graph resultGraph(numComponents_);
+        for (Id from = 0; from < graph_.size(); ++from) {
+            for (size_t arcIndex = 0; arcIndex < graph_.at(from).size();
+                                                                ++arcIndex) {
+                const Arc& arc = graph_.at(from).at(arcIndex);
+                Id newFrom = componentIndex_[from];
+                Id newTo = componentIndex_[arc.to];
+                if (arc.label != EPSILON || newFrom != newTo) {
+                    resultGraph.at(newFrom).push_back(Arc(newTo, arc.label));
+                }
+            }
         }
-        for (size_t index = 0; index < terminals.size(); ++index) {
-            isTerminal_[terminals[index]] = true;
-        }
-    }
-    const Ids& next(Id vertex, char label) const
-    {
-        return transitions_[vertex][getLabelId(label)];
+        return resultGraph;
     }
 
-    Id initVertex() const
-    {
-        return initVertex_;
-    }
-
+private:
     void shrinkByEpsilonArcs()
     {
-        used_ = std::vector<bool>(numVertices_);
-        for (Id vertex = 0; vertex < numVertices_; ++vertex) {
+        used_.assign(graph_.size(), false);
+        for (Id vertex = 0; vertex < graph_.size(); ++vertex) {
             if (!used_[vertex]) {
                 dfs(vertex, graph_);
             }
         }
-        fill(used_.begin(), used_.end(), false);
-        Graph transposedGraph(numVertices_);
-        for (size_t edgeId = 0; edgeId < edges_.size(); ++edgeId) {
-            const Edge& edge = edges_[edgeId];
-            transposedGraph[edge.to].push_back(Arc(edge.from, edge.label));
+        used_.assign(graph_.size(), false);
+        Graph transposedGraph(graph_.size());
+        for (Id from = 0; from < graph_.size(); ++from) {
+            for (size_t arcIndex = 0; arcIndex < graph_.at(from).size();
+                                                                ++arcIndex) {
+                const Arc& arc = graph_.at(from).at(arcIndex);
+                transposedGraph.at(arc.to).push_back(Arc(from, arc.label));
+            }
         }
-        int numComponents = 0;
-        componentIndex_ = Ids(numVertices_);
+        componentIndex_ = Ids(graph_.size());
         std::reverse(verticesInOrder_.begin(), verticesInOrder_.end());
+        numComponents_ = 0;
         for (size_t index = 0; index < verticesInOrder_.size(); ++index) {
             Id vertex = verticesInOrder_[index];
             if (!used_[vertex]) {
-                dfs(vertex, transposedGraph, numComponents++);
+                dfs(vertex, transposedGraph, numComponents_++);
             }
         }
-        rebuildGraph(numComponents);
-    }
-
-    bool isTerminal(Id vertex) const
-    {
-        return isTerminal_[vertex];
-    }
-
-    size_t numVertices() const {
-        return numVertices_;
-    }
-
-    void buildTransitions()
-    {
-        transitions_ = std::vector<std::vector<Ids> >(
-                                    numVertices_, std::vector<Ids>(ALPH_NUM));
-        for (Id vertex = 0; vertex < numVertices_; ++vertex) {
-            const Arcs& arcs = graph_[vertex];
-            for (size_t arcId = 0; arcId < arcs.size(); ++arcId) {
-                const Arc& arc = arcs[arcId];
-                transitions_[vertex][getLabelId(arc.label)].push_back(arc.to);
-            }
-        }
-    }
-
-    static const int ALPH_NUM = 27;
-
-private:
-    Id getLabelId(char character) const
-    {
-        if (character == EPSILON) {
-            return ALPH_NUM - 1;
-        } else {
-            REQUIRE(isalpha(character) && tolower(character) == character,
-                    "Character " << character << " is not one of a-z");
-            return character - 'a';
-        }
-    }
-
-    void rebuildGraph(int numComponents) {
-        graph_ = std::vector<Arcs>(numComponents);
-        for (size_t edgeId = 0; edgeId < edges_.size(); ++edgeId) {
-            Edge& edge = edges_[edgeId];
-            edge.from = componentIndex_[edge.from];
-            edge.to = componentIndex_[edge.to];
-            if (edge.label != EPSILON || edge.from != edge.to) {
-                graph_[edge.from].push_back(Arc(edge.to, edge.label));
-            }
-        }
-        std::vector<bool> isTerminal(numComponents);
-        for (Id vertex = 0; vertex < numVertices_; ++vertex) {
-            if (isTerminal_[vertex]) {
-                isTerminal[componentIndex_[vertex]] = true;
-            }
-        }
-        isTerminal_ = isTerminal;
-        numVertices_ = numComponents;
-        initVertex_ = componentIndex_[initVertex_];
     }
 
     void dfs(Id vertex, const Graph& graph, Id component) {
@@ -170,39 +119,76 @@ private:
         verticesInOrder_.push_back(vertex);
     }
 
-    Id numVertices_;
-    Id initVertex_;
-    Edges edges_;
     Graph graph_;
-    Ids verticesInOrder;
+    size_t numComponents_;
     Ids componentIndex_;
-    std::vector<std::vector<Ids> > transitions_;
-    std::vector<bool> isTerminal_;
     Ids verticesInOrder_;
     std::vector<bool> used_;
 };
 
-void readAutomaton(Automaton* automaton)
-{
-    size_t numVertices, numEdges, numTerminals;
-    std::cin >> numVertices >> numEdges >> numTerminals;
+class Automaton {
+public:
+    Automaton() : initVertex_(-1) { }
 
-    Ids terminals(numTerminals);
-    for (size_t index = 0; index < numTerminals; ++index) {
-        std::cin >> terminals[index];
+    Automaton(const Graph& graph, Ids terminals, Id initVertex)
+        : initVertex_(initVertex), isTerminal_(graph.size())
+    {
+        for (size_t index = 0; index < terminals.size(); ++index) {
+            isTerminal_.at(terminals[index]) = true;
+        }
+        buildTransitions(graph);
     }
 
-    Edges edges;
-    edges.reserve(numEdges);
-
-    for (size_t edgeId = 0; edgeId < numEdges; ++edgeId) {
-        Id from, to;
-        char label;
-        std::cin >> from >> label >> to;
-        edges.push_back(Edge(from, to, label));
+    const Ids& next(Id vertex, char label) const
+    {
+        return transitions_[vertex][getLabelId(label)];
     }
-    *automaton = Automaton(numVertices, edges, terminals);
-}
+
+    Id initVertex() const
+    {
+        return initVertex_;
+    }
+
+    bool isTerminal(Id vertex) const
+    {
+        return isTerminal_[vertex];
+    }
+
+    size_t numVertices() const {
+        return transitions_.size();
+    }
+
+    static const int ALPH_NUM = 27;
+
+    void buildTransitions(const Graph& graph)
+    {
+        transitions_.assign(graph.size(), std::vector<Ids>(ALPH_NUM));
+        for (Id vertex = 0; vertex < graph.size(); ++vertex) {
+            const Arcs& arcs = graph.at(vertex);
+            for (size_t arcId = 0; arcId < arcs.size(); ++arcId) {
+                const Arc& arc = arcs[arcId];
+                transitions_[vertex][getLabelId(arc.label)].push_back(arc.to);
+            }
+        }
+    }
+
+
+private:
+    Id getLabelId(char character) const
+    {
+        if (character == EPSILON) {
+            return ALPH_NUM - 1;
+        } else {
+            REQUIRE(isalpha(character) && tolower(character) == character,
+                    "Character " << character << " is not one of a-z");
+            return character - 'a';
+        }
+    }
+
+    Id initVertex_;
+    std::vector<std::vector<Ids> > transitions_;
+    std::vector<bool> isTerminal_;
+};
 
 class LongestSubstringFinder
 {
@@ -213,9 +199,9 @@ public:
         longestPathLength_(automaton.numVertices(),
                            std::vector<size_t>(word.size() + 1, UNDEFINED)),
         nextVertex_(automaton.numVertices(),
-                    std::vector<size_t>(word.size() + 1, NON_EXISTENT)),
+                    std::vector<size_t>(word.size() + 1, NONEXISTENT)),
         nextPosition_(automaton.numVertices(),
-                      std::vector<size_t>(word.size() + 1, NON_EXISTENT)),
+                      std::vector<size_t>(word.size() + 1, NONEXISTENT)),
         calculated_(false)
     { }
 
@@ -233,9 +219,9 @@ private:
             return longestPathLength_[vertex][position];
         }
 
-        size_t result = NON_EXISTENT;
-        size_t nextVertex = NON_EXISTENT;
-        size_t nextPosition = NON_EXISTENT;
+        size_t result = NONEXISTENT;
+        size_t nextVertex = NONEXISTENT;
+        size_t nextPosition = NONEXISTENT;
         if (automaton_.isTerminal(vertex)) {
             result = 0;
         }
@@ -243,8 +229,8 @@ private:
         for (size_t index = 0; index < epsAdjacent.size(); ++index) {
             size_t candidateValue =
                             longestPathLength(epsAdjacent[index], position);
-            if (candidateValue != NON_EXISTENT) {
-                if (result == NON_EXISTENT || result < candidateValue) {
+            if (candidateValue != NONEXISTENT) {
+                if (result == NONEXISTENT || result < candidateValue) {
                     result = candidateValue;
                     nextVertex = epsAdjacent[index];
                     nextPosition = position;
@@ -256,8 +242,8 @@ private:
             for (size_t index = 0; index < adjacent.size(); ++index) {
                 size_t candidateValue =
                             longestPathLength(adjacent[index], position + 1);
-                if (candidateValue != NON_EXISTENT) {
-                    if (result == NON_EXISTENT ||
+                if (candidateValue != NONEXISTENT) {
+                    if (result == NONEXISTENT ||
                                                 result < candidateValue + 1) {
                         result = candidateValue + 1;
                         nextVertex = adjacent[index];
@@ -278,7 +264,7 @@ private:
         for (size_t position = 0; position < word_.length(); ++position) {
             size_t pathLength =
                         longestPathLength(automaton_.initVertex(), position);
-            if (pathLength != NON_EXISTENT && maxLength < pathLength) {
+            if (pathLength != NONEXISTENT && maxLength < pathLength) {
                 maxLength = pathLength;
                 argMaxPosition = position;
             }
@@ -287,7 +273,7 @@ private:
         if (maxLength > 0) {
             Id vertex = automaton_.initVertex();
             Id position = argMaxPosition;
-            while (nextVertex_[vertex][position] != NON_EXISTENT) {
+            while (nextVertex_[vertex][position] != NONEXISTENT) {
                 if (position + 1 == nextPosition_[vertex][position]) {
                     result += word_[position];
                 }
@@ -309,6 +295,61 @@ private:
     std::string answer_;
     bool calculated_;
 };
+
+void buildGraph(size_t numVertices, const Edges& edges, Graph* graph)
+{
+    graph->clear();
+    graph->resize(numVertices);
+    for (size_t index = 0; index < edges.size(); ++index) {
+        const Edge& edge = edges[index];
+        graph->at(edge.from).push_back(Arc(edge.to, edge.label));
+    }
+}
+
+void readAutomaton(Automaton* automaton)
+{
+    size_t numVertices, numEdges, numTerminals;
+    std::cin >> numVertices >> numEdges >> numTerminals;
+
+    Ids terminals(numTerminals);
+    for (size_t index = 0; index < numTerminals; ++index) {
+        std::cin >> terminals[index];
+    }
+
+    Edges edges;
+    edges.reserve(numEdges);
+
+    for (size_t edgeId = 0; edgeId < numEdges; ++edgeId) {
+        Id from, to;
+        char label;
+        std::cin >> from >> label >> to;
+        edges.push_back(Edge(from, to, label));
+    }
+
+    Graph graph;
+    buildGraph(numVertices, edges, &graph);
+
+    GraphCondenser condenser(graph);
+    Graph condensedGraph = condenser.condensedGraph();
+
+    static const Id INIT_VERTEX = 0;
+
+    Ids condensedTerminals;
+
+    for (size_t index = 0; index < terminals.size(); ++index) {
+        condensedTerminals.push_back(
+                condenser.componentIndex(terminals[index]));
+    }
+
+    std::sort(condensedTerminals.begin(), condensedTerminals.end());
+    condensedTerminals.erase(std::unique(condensedTerminals.begin(),
+                                         condensedTerminals.end()),
+                             condensedTerminals.end());
+
+    *automaton = Automaton(condensedGraph,
+                           condensedTerminals,
+                           condenser.componentIndex(INIT_VERTEX));
+}
 
 void readData(Automaton* automaton, std::string* word)
 {
@@ -337,9 +378,6 @@ int main()
     Automaton automaton;
     std::string word;
     readData(&automaton, &word);
-
-    automaton.shrinkByEpsilonArcs();
-    automaton.buildTransitions();
 
     std::string answer;
     solve(automaton, word, &answer);
