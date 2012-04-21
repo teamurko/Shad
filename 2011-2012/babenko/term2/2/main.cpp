@@ -306,26 +306,9 @@ void buildGraph(size_t numVertices, const Edges& edges, Graph* graph)
     }
 }
 
-void readAutomaton(Automaton* automaton)
+void buildCondensedAutomaton(size_t numVertices, const Edges& edges,
+                             const Ids& terminals, Automaton* automaton)
 {
-    size_t numVertices, numEdges, numTerminals;
-    std::cin >> numVertices >> numEdges >> numTerminals;
-
-    Ids terminals(numTerminals);
-    for (size_t index = 0; index < numTerminals; ++index) {
-        std::cin >> terminals[index];
-    }
-
-    Edges edges;
-    edges.reserve(numEdges);
-
-    for (size_t edgeId = 0; edgeId < numEdges; ++edgeId) {
-        Id from, to;
-        char label;
-        std::cin >> from >> label >> to;
-        edges.push_back(Edge(from, to, label));
-    }
-
     Graph graph;
     buildGraph(numVertices, edges, &graph);
 
@@ -351,9 +334,27 @@ void readAutomaton(Automaton* automaton)
                            condenser.componentIndex(INIT_VERTEX));
 }
 
-void readData(Automaton* automaton, std::string* word)
+void readData(size_t& numVertices, Edges* edges,
+              Ids* terminals, std::string* word)
 {
-    readAutomaton(automaton);
+    size_t numEdges, numTerminals;
+    std::cin >> numVertices >> numEdges >> numTerminals;
+
+    terminals->clear();
+    terminals->resize(numTerminals);
+    for (size_t index = 0; index < numTerminals; ++index) {
+        std::cin >> terminals->at(index);
+    }
+
+    edges->clear();
+    edges->reserve(numEdges);
+
+    for (size_t edgeId = 0; edgeId < numEdges; ++edgeId) {
+        Id from, to;
+        char label;
+        std::cin >> from >> label >> to;
+        edges->push_back(Edge(from, to, label));
+    }
     std::cin >> *word;
 }
 
@@ -375,9 +376,14 @@ void writeData(const std::string& answer)
 
 int main()
 {
-    Automaton automaton;
+    size_t numVertices;
+    Edges edges;
+    Ids terminals;
     std::string word;
-    readData(&automaton, &word);
+    readData(numVertices, &edges, &terminals, &word);
+
+    Automaton automaton;
+    buildCondensedAutomaton(numVertices, edges, terminals, &automaton);
 
     std::string answer;
     solve(automaton, word, &answer);
