@@ -15,6 +15,7 @@
 const size_t ALPH_SIZE = 26;
 
 typedef std::vector<std::vector<size_t> > Graph;
+typedef std::vector<bool> Flags;
 
 struct Production
 {
@@ -75,25 +76,27 @@ void outData(const std::string& answer)
     std::cout << sorted << std::endl;
 }
 
-void findEmptyReachableNonTerminals(const Productions& productions,
-                                    std::vector<bool>* canBeEmpty)
+Flags findEmptyReachableNonTerminals(const Productions& productions)
 {
     const size_t numProds = productions.size();
     std::vector<size_t> outputReduction(numProds);
     std::queue<size_t> canBeEmptyNonTerminals;
-    std::vector<bool> processed(ALPH_SIZE);
+    Flags processed(ALPH_SIZE);
     for (size_t index = 0; index < productions.size(); ++index) {
         const Production& production = productions[index];
         if (isEpsilon(production.output)) {
             size_t nonTerminal = nonTerminalId(production.nonTerminal);
-            canBeEmptyNonTerminals.push(nonTerminal);
-            processed[nonTerminal] = true;
+            if (!processed[nonTerminal]) {
+                canBeEmptyNonTerminals.push(nonTerminal);
+                processed[nonTerminal] = true;
+            }
         }
     }
+    Flags canBeEmpty(ALPH_SIZE);
     while (!canBeEmptyNonTerminals.empty()) {
         size_t nonTerminal = canBeEmptyNonTerminals.front();
         canBeEmptyNonTerminals.pop();
-        canBeEmpty->at(nonTerminal) = true;
+        canBeEmpty.at(nonTerminal) = true;
         for (size_t index = 0; index < numProds; ++index) {
             const Production& prod = productions[index];
             const std::string& output = prod.output;
@@ -116,10 +119,11 @@ void findEmptyReachableNonTerminals(const Productions& productions,
             }
         }
     }
+    return canBeEmpty;
 }
 
 void leaveSignificantOutputLetters(
-        const std::vector<bool>& canBeEmpty,
+        const Flags& canBeEmpty,
         Productions* productions)
 {
     for (size_t index = 0; index < productions->size(); ++index) {
@@ -167,8 +171,8 @@ void buildGraph(const Productions& prods, Graph* graph)
     }
 }
 
-std::vector<bool> findTerminatedNonTerminals(
-        const std::vector<bool>& canBeEmpty,
+Flags findTerminatedNonTerminals(
+        const Flags& canBeEmpty,
         const Productions& prods)
 {
     std::vector<size_t> nonTerminalCount(prods.size());
@@ -184,16 +188,18 @@ std::vector<bool> findTerminatedNonTerminals(
         }
     }
 
-    std::vector<bool> result(ALPH_SIZE);
+    Flags result(ALPH_SIZE);
     std::queue<size_t> terminatedQueue;
-    std::vector<bool> processed(ALPH_SIZE);
+    Flags processed(ALPH_SIZE);
 
     for (size_t index = 0; index < prods.size(); ++index) {
         const std::string& output = prods[index].output;
         if (isEpsilon(output)) {
             size_t id = nonTerminalId(prods[index].nonTerminal);
-            processed[id] = true;
-            terminatedQueue.push(id);
+            if (!processed[id]) {
+                processed[id] = true;
+                terminatedQueue.push(id);
+            }
             continue;
         }
         bool areAllTerminals = true;
@@ -241,8 +247,8 @@ std::vector<bool> findTerminatedNonTerminals(
     return result;
 }
 
-Productions findSignificantProductions(const std::vector<bool>& terminated,
-                                       const Productions& prods)
+Productions leaveSignificantProductions(const Flags& terminated,
+                                        const Productions& prods)
 {
     Productions result;
     for (size_t index = 0; index < prods.size(); ++index) {
@@ -267,23 +273,17 @@ Productions findSignificantProductions(const std::vector<bool>& terminated,
 
 void solve(const Productions& productions, std::string* answer)
 {
-    std::vector<bool> canBeEmpty(ALPH_SIZE);
-    findEmptyReachableNonTerminals(productions, &canBeEmpty);
-
-    std::vector<bool> terminated =
-                        findTerminatedNonTerminals(canBeEmpty, productions);
-
-    Productions prods =
-                findSignificantProductions(terminated, productions);
+    Flags canBeEmpty = findEmptyReachableNonTerminals(productions);
+    Flags terminated = findTerminatedNonTerminals(canBeEmpty, productions);
+    Productions prods = leaveSignificantProductions(terminated, productions);
 
     leaveSignificantOutputLetters(canBeEmpty, &prods);
 
     Graph graph;
     buildGraph(prods, &graph);
 
-    std::vector<bool> isInQueue(ALPH_SIZE);
-    std::vector<std::vector<bool> > canStartWith(ALPH_SIZE,
-                                    std::vector<bool>(ALPH_SIZE));
+    Flags isInQueue(ALPH_SIZE);
+    std::vector<Flags> canStartWith(ALPH_SIZE, Flags(ALPH_SIZE));
 
     std::queue<size_t> updatedQueue;
 
@@ -338,8 +338,10 @@ int main()
 {
     Productions productions;
     readData(&productions);
+
     std::string answer;
     solve(productions, &answer);
+
     outData(answer);
     return 0;
 }
