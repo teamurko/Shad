@@ -76,52 +76,6 @@ void outData(const std::string& answer)
     std::cout << sorted << std::endl;
 }
 
-Flags findEmptyReachableNonTerminals(const Productions& productions)
-{
-    const size_t numProds = productions.size();
-    std::vector<size_t> outputReduction(numProds);
-    std::queue<size_t> canBeEmptyNonTerminals;
-    Flags processed(ALPH_SIZE);
-    for (size_t index = 0; index < productions.size(); ++index) {
-        const Production& production = productions[index];
-        if (isEpsilon(production.output)) {
-            size_t nonTerminal = nonTerminalId(production.nonTerminal);
-            if (!processed[nonTerminal]) {
-                canBeEmptyNonTerminals.push(nonTerminal);
-                processed[nonTerminal] = true;
-            }
-        }
-    }
-    Flags canBeEmpty(ALPH_SIZE);
-    while (!canBeEmptyNonTerminals.empty()) {
-        size_t nonTerminal = canBeEmptyNonTerminals.front();
-        canBeEmptyNonTerminals.pop();
-        canBeEmpty.at(nonTerminal) = true;
-        for (size_t index = 0; index < numProds; ++index) {
-            const Production& prod = productions[index];
-            const std::string& output = prod.output;
-            if (isEpsilon(output)) {
-                continue;
-            }
-            for (size_t outputIndex = 0; outputIndex < output.size();
-                                         ++outputIndex) {
-                if (!isTerminal(output[outputIndex]) &&
-                        nonTerminalId(output[outputIndex]) == nonTerminal) {
-                    ++outputReduction[index];
-                }
-            }
-            if (outputReduction[index] == output.size()) {
-                size_t nonTerminal = nonTerminalId(prod.nonTerminal);
-                if (!processed[nonTerminal]) {
-                    canBeEmptyNonTerminals.push(nonTerminal);
-                    processed[nonTerminal] = true;
-                }
-            }
-        }
-    }
-    return canBeEmpty;
-}
-
 void leaveSignificantOutputLetters(
         const Flags& canBeEmpty,
         Productions* productions)
@@ -171,80 +125,88 @@ void buildGraph(const Productions& prods, Graph* graph)
     }
 }
 
-Flags findTerminatedNonTerminals(
-        const Flags& canBeEmpty,
-        const Productions& prods)
+size_t nonTerminalsCount(const std::string& word)
 {
-    std::vector<size_t> nonTerminalCount(prods.size());
-    for (size_t index = 0; index < prods.size(); ++index) {
-        const std::string& output = prods[index].output;
-        if (isEpsilon(output)) {
-            continue;
-        }
-        for (size_t i = 0; i < output.size(); ++i) {
-            if (!isTerminal(output[i])) {
-                ++nonTerminalCount[index];
-            }
-        }
-    }
+    return word.size() - std::count_if(word.begin(), word.end(), isTerminal);
+}
 
-    Flags result(ALPH_SIZE);
-    std::queue<size_t> terminatedQueue;
+size_t length(const std::string& word)
+{
+    return word.length();
+}
+
+bool hasOnlyTerminalsOrIsEpsilon(const std::string& word)
+{
+    return isEpsilon(word) ||
+           std::count_if(word.begin(), word.end(), isTerminal) ==
+                                                static_cast<int>(word.size());
+}
+
+template <typename StartVertexChecker, typename LengthCounter>
+Flags findSpecificNonTerminals(
+        const Productions& productions, StartVertexChecker check,
+        LengthCounter count)
+{
+    const size_t numProds = productions.size();
+    std::vector<size_t> outputReduction(numProds);
+    for (size_t index = 0; index < productions.size(); ++index) {
+        const std::string& output = productions[index].output;
+        outputReduction[index] = count(output);
+    }
+    std::queue<size_t> specificNonTerminals;
     Flags processed(ALPH_SIZE);
-
-    for (size_t index = 0; index < prods.size(); ++index) {
-        const std::string& output = prods[index].output;
-        if (isEpsilon(output)) {
-            size_t id = nonTerminalId(prods[index].nonTerminal);
-            if (!processed[id]) {
-                processed[id] = true;
-                terminatedQueue.push(id);
-            }
-            continue;
-        }
-        bool areAllTerminals = true;
-        for (size_t i = 0; i < output.size(); ++i) {
-            if (!isTerminal(output[i])) {
-                areAllTerminals = false;
-                break;
-            }
-        }
-        if (areAllTerminals) {
-            size_t id = nonTerminalId(prods[index].nonTerminal);
-            if (!processed[id]) {
-                processed[id] = true;
-                terminatedQueue.push(id);
+    for (size_t index = 0; index < productions.size(); ++index) {
+        const Production& production = productions[index];
+        if (check(production.output)) {
+            size_t nonTerminal = nonTerminalId(production.nonTerminal);
+            if (!processed[nonTerminal]) {
+                specificNonTerminals.push(nonTerminal);
+                processed[nonTerminal] = true;
             }
         }
     }
-
-    while (!terminatedQueue.empty()) {
-        size_t nonTerminal = terminatedQueue.front();
-        terminatedQueue.pop();
-        result[nonTerminal] = true;
-        for (size_t index = 0; index < prods.size(); ++index) {
-            const Production& prod = prods[index];
-            const std::string& output = prod.output;
+    Flags result(ALPH_SIZE);
+    while (!specificNonTerminals.empty()) {
+        size_t nonTerminal = specificNonTerminals.front();
+        specificNonTerminals.pop();
+        result.at(nonTerminal) = true;
+        for (size_t index = 0; index < numProds; ++index) {
+            const Production& production = productions[index];
+            const std::string& output = production.output;
             if (isEpsilon(output)) {
                 continue;
             }
-            for (size_t i = 0; i < output.size(); ++i) {
-                if (!isTerminal(output[i]) &&
-                            nonTerminalId(output[i]) == nonTerminal) {
-                    --nonTerminalCount[index];
+            for (size_t outputIndex = 0; outputIndex < output.size();
+                                         ++outputIndex) {
+                if (!isTerminal(output[outputIndex]) &&
+                        nonTerminalId(output[outputIndex]) == nonTerminal) {
+                    --outputReduction[index];
                 }
             }
-            if (nonTerminalCount[index] == 0) {
-                size_t id = nonTerminalId(prod.nonTerminal);
-                if (!processed[id]) {
-                    processed[id] = true;
-                    terminatedQueue.push(id);
+            if (outputReduction[index] == 0) {
+                size_t nonTerminal = nonTerminalId(production.nonTerminal);
+                if (!processed[nonTerminal]) {
+                    specificNonTerminals.push(nonTerminal);
+                    processed[nonTerminal] = true;
                 }
             }
         }
     }
-
     return result;
+}
+
+Flags findTerminatedNonTerminals(const Productions& productions)
+{
+    return findSpecificNonTerminals(productions,
+                                    hasOnlyTerminalsOrIsEpsilon,
+                                    nonTerminalsCount);
+}
+
+Flags findEmptyReachableNonTerminals(const Productions& productions)
+{
+    return findSpecificNonTerminals(productions,
+                                    isEpsilon,
+                                    length);
 }
 
 Productions leaveSignificantProductions(const Flags& terminated,
@@ -274,7 +236,7 @@ Productions leaveSignificantProductions(const Flags& terminated,
 void solve(const Productions& productions, std::string* answer)
 {
     Flags canBeEmpty = findEmptyReachableNonTerminals(productions);
-    Flags terminated = findTerminatedNonTerminals(canBeEmpty, productions);
+    Flags terminated = findTerminatedNonTerminals(productions);
     Productions prods = leaveSignificantProductions(terminated, productions);
 
     leaveSignificantOutputLetters(canBeEmpty, &prods);
