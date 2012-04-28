@@ -2,11 +2,13 @@
 #include <algorithm>
 #include <vector>
 #include <string>
+#include <cassert>
 
 #define REQUIRE(cond, message) \
     do { \
         if (!(cond)) { \
             std::cerr << message << std::endl; \
+            assert(false); \
         } \
     } while (false)
 
@@ -38,102 +40,86 @@ struct Arc
 typedef std::vector<Arc> Arcs;
 typedef std::vector<Arcs> Graph;
 
-class GraphCondenser
+void dfs(Id vertex, const Graph& graph, std::vector<bool>* used, Ids* visited)
 {
-public:
-    explicit GraphCondenser(const Graph& graph) : graph_(graph)
-    {
-        shrinkByEpsilonArcs();
-    }
-
-    Id componentIndex(Id vertex) const
-    {
-        return componentIndex_.at(vertex);
-    }
-
-    Graph condensedGraph() const
-    {
-        Graph resultGraph(numComponents_);
-        for (Id from = 0; from < graph_.size(); ++from) {
-            for (size_t arcIndex = 0; arcIndex < graph_.at(from).size();
-                                                                ++arcIndex) {
-                const Arc& arc = graph_.at(from).at(arcIndex);
-                Id newFrom = componentIndex_[from];
-                Id newTo = componentIndex_[arc.to];
-                if (arc.label != EPSILON || newFrom != newTo) {
-                    resultGraph.at(newFrom).push_back(Arc(newTo, arc.label));
-                }
-            }
-        }
-        return resultGraph;
-    }
-
-private:
-    void shrinkByEpsilonArcs()
-    {
-        used_.assign(graph_.size(), false);
-        for (Id vertex = 0; vertex < graph_.size(); ++vertex) {
-            if (!used_[vertex]) {
-                dfs(vertex, graph_);
-            }
-        }
-        used_.assign(graph_.size(), false);
-        Graph transposedGraph(graph_.size());
-        for (Id from = 0; from < graph_.size(); ++from) {
-            for (size_t arcIndex = 0; arcIndex < graph_.at(from).size();
-                                                                ++arcIndex) {
-                const Arc& arc = graph_.at(from).at(arcIndex);
-                transposedGraph.at(arc.to).push_back(Arc(from, arc.label));
-            }
-        }
-        componentIndex_ = Ids(graph_.size());
-        std::reverse(verticesInOrder_.begin(), verticesInOrder_.end());
-        numComponents_ = 0;
-        for (size_t index = 0; index < verticesInOrder_.size(); ++index) {
-            Id vertex = verticesInOrder_[index];
-            if (!used_[vertex]) {
-                dfs(vertex, transposedGraph, numComponents_++);
-            }
+    used->at(vertex) = true;
+    for (Id arcId = 0; arcId < graph[vertex].size(); ++arcId) {
+        const Arc& arc = graph[vertex][arcId];
+        if (arc.label == EPSILON && !used->at(arc.to)) {
+            dfs(arc.to, graph, used, visited);
         }
     }
+    visited->push_back(vertex);
+}
 
-    void dfs(Id vertex, const Graph& graph, Id component) {
-        used_[vertex] = true;
-        for (size_t arcId = 0; arcId < graph[vertex].size(); ++arcId) {
-            const Arc& arc = graph[vertex][arcId];
-            if (arc.label == EPSILON && !used_[arc.to]) {
-                dfs(arc.to, graph, component);
+Graph transposed(const Graph& graph)
+{
+    Graph transposedGraph(graph.size());
+    for (Id from = 0; from < graph.size(); ++from) {
+        for (Id arcIndex = 0; arcIndex < graph.at(from).size(); ++arcIndex) {
+            const Arc& arc = graph.at(from).at(arcIndex);
+            transposedGraph.at(arc.to).push_back(Arc(from, arc.label));
+        }
+    }
+    return transposedGraph;
+}
+
+// Returns number of components.
+size_t shrinkByEpsilonArcs(const Graph& graph, Ids* componentIndex)
+{
+    std::vector<bool> used(graph.size());
+    Ids verticesInPostDfsOrder;
+    for (Id vertex = 0; vertex < graph.size(); ++vertex) {
+        if (!used[vertex]) {
+            dfs(vertex, graph, &used, &verticesInPostDfsOrder);
+        }
+    }
+    used.assign(graph.size(), false);
+    componentIndex->assign(graph.size(), 0);
+    std::reverse(verticesInPostDfsOrder.begin(),
+                 verticesInPostDfsOrder.end());
+    size_t numComponents = 0;
+    Graph transposedGraph = transposed(graph);
+    Ids visited;
+    for (Id index = 0; index < verticesInPostDfsOrder.size(); ++index) {
+        Id vertex = verticesInPostDfsOrder[index];
+        if (!used[vertex]) {
+            dfs(vertex, transposedGraph, &used, &visited);
+            for (Id i = 0; i < visited.size(); ++i) {
+                componentIndex->at(visited[i]) = numComponents;
+            }
+            visited.clear();
+            ++numComponents;
+        }
+    }
+    return numComponents;
+}
+
+Graph condensedGraph(const Graph& graph, Ids* componentIndex)
+{
+    size_t numComponents = shrinkByEpsilonArcs(graph, componentIndex);
+    Graph resultGraph(numComponents);
+    for (Id from = 0; from < graph.size(); ++from) {
+        for (Id arcIndex = 0; arcIndex < graph.at(from).size(); ++arcIndex) {
+            const Arc& arc = graph.at(from).at(arcIndex);
+            Id newFrom = componentIndex->at(from);
+            Id newTo = componentIndex->at(arc.to);
+            if (arc.label != EPSILON || newFrom != newTo) {
+                resultGraph.at(newFrom).push_back(Arc(newTo, arc.label));
             }
         }
-        componentIndex_[vertex] = component;
     }
-
-    void dfs(Id vertex, const Graph& graph) {
-        used_[vertex] = true;
-        for (size_t arcId = 0; arcId < graph[vertex].size(); ++arcId) {
-            const Arc& arc = graph[vertex][arcId];
-            if (arc.label == EPSILON && !used_[arc.to]) {
-                dfs(arc.to, graph);
-            }
-        }
-        verticesInOrder_.push_back(vertex);
-    }
-
-    Graph graph_;
-    size_t numComponents_;
-    Ids componentIndex_;
-    Ids verticesInOrder_;
-    std::vector<bool> used_;
-};
+    return resultGraph;
+}
 
 class Automaton {
 public:
     Automaton() : initVertex_(-1) { }
 
-    Automaton(const Graph& graph, Ids terminals, Id initVertex)
+    Automaton(const Graph& graph, const Ids& terminals, Id initVertex)
         : initVertex_(initVertex), isTerminal_(graph.size())
     {
-        for (size_t index = 0; index < terminals.size(); ++index) {
+        for (Id index = 0; index < terminals.size(); ++index) {
             isTerminal_.at(terminals[index]) = true;
         }
         buildTransitions(graph);
@@ -158,14 +144,14 @@ public:
         return transitions_.size();
     }
 
-    static const int ALPH_NUM = 27;
+    static const int ALPHABET_SIZE = 27;
 
     void buildTransitions(const Graph& graph)
     {
-        transitions_.assign(graph.size(), std::vector<Ids>(ALPH_NUM));
+        transitions_.assign(graph.size(), std::vector<Ids>(ALPHABET_SIZE));
         for (Id vertex = 0; vertex < graph.size(); ++vertex) {
             const Arcs& arcs = graph.at(vertex);
-            for (size_t arcId = 0; arcId < arcs.size(); ++arcId) {
+            for (Id arcId = 0; arcId < arcs.size(); ++arcId) {
                 const Arc& arc = arcs[arcId];
                 transitions_[vertex][getLabelId(arc.label)].push_back(arc.to);
             }
@@ -177,7 +163,7 @@ private:
     Id getLabelId(char character) const
     {
         if (character == EPSILON) {
-            return ALPH_NUM - 1;
+            return ALPHABET_SIZE - 1;
         } else {
             REQUIRE(isalpha(character) && tolower(character) == character,
                     "Character " << character << " is not one of a-z");
@@ -214,54 +200,62 @@ public:
     }
 
 private:
-    int longestPathLength(Id vertex, size_t position) {
+    struct State
+    {
+        size_t length;
+        Id nextVertex;
+        Id nextPosition;
+    };
+
+    size_t longestPathLength(Id vertex, Id position) {
         if (longestPathLength_[vertex][position] != UNDEFINED) {
             return longestPathLength_[vertex][position];
         }
 
-        size_t result = NONEXISTENT;
-        size_t nextVertex = NONEXISTENT;
-        size_t nextPosition = NONEXISTENT;
+        State result = {NONEXISTENT, NONEXISTENT, NONEXISTENT};
         if (automaton_.isTerminal(vertex)) {
-            result = 0;
+            result.length = 0;
         }
         const Ids& epsAdjacent = automaton_.next(vertex, EPSILON);
-        for (size_t index = 0; index < epsAdjacent.size(); ++index) {
+        for (Id index = 0; index < epsAdjacent.size(); ++index) {
             size_t candidateValue =
                             longestPathLength(epsAdjacent[index], position);
             if (candidateValue != NONEXISTENT) {
-                if (result == NONEXISTENT || result < candidateValue) {
-                    result = candidateValue;
-                    nextVertex = epsAdjacent[index];
-                    nextPosition = position;
-                }
+                update(candidateValue, epsAdjacent[index], position, &result);
             }
         }
         if (position < word_.length()) {
             const Ids& adjacent = automaton_.next(vertex, word_[position]);
-            for (size_t index = 0; index < adjacent.size(); ++index) {
+            for (Id index = 0; index < adjacent.size(); ++index) {
                 size_t candidateValue =
                             longestPathLength(adjacent[index], position + 1);
                 if (candidateValue != NONEXISTENT) {
-                    if (result == NONEXISTENT ||
-                                                result < candidateValue + 1) {
-                        result = candidateValue + 1;
-                        nextVertex = adjacent[index];
-                        nextPosition = position + 1;
-                    }
+                    update(candidateValue + 1, adjacent[index], position + 1,
+                           &result);
                 }
             }
         }
 
-        nextVertex_[vertex][position] = nextVertex;
-        nextPosition_[vertex][position] = nextPosition;
-        return longestPathLength_[vertex][position] = result;
+        nextVertex_[vertex][position] = result.nextVertex;
+        nextPosition_[vertex][position] = result.nextPosition;
+        return longestPathLength_[vertex][position] = result.length;
+    }
+
+    void update(size_t candidateLength, Id nextVertex, Id nextPosition,
+                State* result)
+    {
+        if (result->length == NONEXISTENT ||
+                                    result->length < candidateLength) {
+            result->length = candidateLength;
+            result->nextVertex = nextVertex;
+            result->nextPosition = nextPosition;
+        }
     }
 
     std::string restoreSubstring() {
         size_t maxLength = 0;
-        size_t argMaxPosition = 0;
-        for (size_t position = 0; position < word_.length(); ++position) {
+        Id argMaxPosition = 0;
+        for (Id position = 0; position < word_.length(); ++position) {
             size_t pathLength =
                         longestPathLength(automaton_.initVertex(), position);
             if (pathLength != NONEXISTENT && maxLength < pathLength) {
@@ -291,7 +285,7 @@ private:
     const std::string& word_;
     std::vector<std::vector<size_t> > longestPathLength_;
     std::vector<std::vector<Id> > nextVertex_;
-    std::vector<std::vector<size_t> > nextPosition_;
+    std::vector<std::vector<Id> > nextPosition_;
     std::string answer_;
     bool calculated_;
 };
@@ -300,7 +294,7 @@ void buildGraph(size_t numVertices, const Edges& edges, Graph* graph)
 {
     graph->clear();
     graph->resize(numVertices);
-    for (size_t index = 0; index < edges.size(); ++index) {
+    for (Id index = 0; index < edges.size(); ++index) {
         const Edge& edge = edges[index];
         graph->at(edge.from).push_back(Arc(edge.to, edge.label));
     }
@@ -312,16 +306,15 @@ void buildCondensedAutomaton(size_t numVertices, const Edges& edges,
     Graph graph;
     buildGraph(numVertices, edges, &graph);
 
-    GraphCondenser condenser(graph);
-    Graph condensedGraph = condenser.condensedGraph();
+    Ids componentIndex;
+    Graph condensedGraph = ::condensedGraph(graph, &componentIndex);
 
     static const Id INIT_VERTEX = 0;
 
     Ids condensedTerminals;
 
-    for (size_t index = 0; index < terminals.size(); ++index) {
-        condensedTerminals.push_back(
-                condenser.componentIndex(terminals[index]));
+    for (Id index = 0; index < terminals.size(); ++index) {
+        condensedTerminals.push_back(componentIndex.at(terminals[index]));
     }
 
     std::sort(condensedTerminals.begin(), condensedTerminals.end());
@@ -331,7 +324,7 @@ void buildCondensedAutomaton(size_t numVertices, const Edges& edges,
 
     *automaton = Automaton(condensedGraph,
                            condensedTerminals,
-                           condenser.componentIndex(INIT_VERTEX));
+                           componentIndex.at(INIT_VERTEX));
 }
 
 void readData(size_t& numVertices, Edges* edges,
@@ -342,14 +335,14 @@ void readData(size_t& numVertices, Edges* edges,
 
     terminals->clear();
     terminals->resize(numTerminals);
-    for (size_t index = 0; index < numTerminals; ++index) {
+    for (Id index = 0; index < numTerminals; ++index) {
         std::cin >> terminals->at(index);
     }
 
     edges->clear();
     edges->reserve(numEdges);
 
-    for (size_t edgeId = 0; edgeId < numEdges; ++edgeId) {
+    for (Id edgeId = 0; edgeId < numEdges; ++edgeId) {
         Id from, to;
         char label;
         std::cin >> from >> label >> to;
@@ -358,11 +351,11 @@ void readData(size_t& numVertices, Edges* edges,
     std::cin >> *word;
 }
 
-void solve(const Automaton& automaton, const std::string& word,
-           std::string* result)
+std::string findLongestAcceptedSubstring(
+        const Automaton& automaton, const std::string& word)
 {
     LongestSubstringFinder solver(automaton, word);
-    *result = solver.find();
+    return solver.find();
 }
 
 void writeData(const std::string& answer)
@@ -385,9 +378,7 @@ int main()
     Automaton automaton;
     buildCondensedAutomaton(numVertices, edges, terminals, &automaton);
 
-    std::string answer;
-    solve(automaton, word, &answer);
-
+    std::string answer = findLongestAcceptedSubstring(automaton, word);
     writeData(answer);
 
     return 0;

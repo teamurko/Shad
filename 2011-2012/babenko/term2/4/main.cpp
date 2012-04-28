@@ -5,11 +5,13 @@
 #include <vector>
 #include <cmath>
 #include <string>
+#include <cassert>
 
 #define REQUIRE(cond, message) \
     do { \
         if (!(cond)) { \
             std::cerr << message << std::endl; \
+            assert(false); \
         } \
     } while (false)
 
@@ -24,7 +26,7 @@ std::vector<size_t> zFunction(const std::string& word)
                word[result[i]] == word[i + result[i]]) {
             ++result[i];
         }
-        if (i + result[i]-1 > r) {
+        if (i + result[i] - 1 > r) {
             l = i;
             r = i + result[i] - 1;
         }
@@ -32,26 +34,37 @@ std::vector<size_t> zFunction(const std::string& word)
     return result;
 }
 
-void solve()
+void readData(std::string* word)
 {
-    std::string word;
-    std::cin >> word;
-    word += word;
+    std::cin >> *word;
+}
+
+size_t solve(const std::string& word)
+{
     std::vector<size_t> zf = zFunction(word);
     size_t answer = 1;
-    for (size_t i = 1; i < word.size() / 2; ++i) {
-        if (zf[i] >= word.size() / 2) {
-            REQUIRE(word.size() / 2 % i == 0, "Cannot split in equal blocks");
-            answer = word.size() / 2 / i;
+    for (size_t i = 1; i < word.size(); ++i) {
+        if (zf[i] + i == word.size() && word.size() % i == 0) {
+            answer = word.size() / i;
             break;
         }
     }
+    return answer;
+}
+
+void outData(size_t answer)
+{
     std::cout << answer << std::endl;
 }
 
 int main()
 {
     std::ios_base::sync_with_stdio(false);
-    solve();
+
+    std::string word;
+    readData(&word);
+    size_t result = solve(word);
+    outData(result);
+
     return 0;
 }
