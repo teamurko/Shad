@@ -30,18 +30,23 @@ typedef std::vector<Production> Productions;
 
 bool isTerminal(char c)
 {
-    return tolower(c) == c;
+    return 'a' <= c && c <= 'z';
+}
+
+bool isNonTerminal(char c)
+{
+    return 'A' <= c && c <= 'Z';
 }
 
 size_t nonTerminalId(char c)
 {
-    REQUIRE(isalpha(c) && toupper(c) == c, "Unknown non-terminal : " << c);
+    REQUIRE(isNonTerminal(c), "Unknown non-terminal : " << c);
     return c - 'A';
 }
 
 size_t terminalId(char c)
 {
-    REQUIRE(isalpha(c) && tolower(c) == c, "Unknown terminal : " << c);
+    REQUIRE(isTerminal(c), "Unknown terminal : " << c);
     return c - 'a';
 }
 
