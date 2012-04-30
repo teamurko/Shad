@@ -1,3 +1,4 @@
+#include <functional>
 #include <cassert>
 #include <algorithm>
 #include <set>
@@ -29,20 +30,18 @@ typedef std::vector<Production> Productions;
 
 bool isTerminal(char c)
 {
-    REQUIRE(('a' <= c && c <= 'z') || ('A' <= c && c <= 'Z'),
-            "Unknown symbol : " << c);
-    return 'a' <= c && c <= 'z';
+    return tolower(c) == c;
 }
 
 size_t nonTerminalId(char c)
 {
-    REQUIRE('A' <= c && c <= 'Z', "Unknown non-terminal : " << c);
+    REQUIRE(isalpha(c) && toupper(c) == c, "Unknown non-terminal : " << c);
     return c - 'A';
 }
 
 size_t terminalId(char c)
 {
-    REQUIRE('a' <= c && c <= 'z', "Unknown terminal : " << c);
+    REQUIRE(isalpha(c) && tolower(c) == c, "Unknown terminal : " << c);
     return c - 'a';
 }
 
@@ -72,11 +71,10 @@ void readData(Productions* productions)
     }
 }
 
-void outData(const std::string& answer)
+void outData(std::string answer)
 {
-    std::string sorted(answer);
-    std::sort(sorted.begin(), sorted.end());
-    std::cout << sorted << std::endl;
+    std::sort(answer.begin(), answer.begin());
+    std::cout << answer << std::endl;
 }
 
 void leaveSignificantOutputLetters(
@@ -102,12 +100,10 @@ void leaveSignificantOutputLetters(
     }
 }
 
-void buildGraphWithArcsFromSubstitutionPart(
-            const Productions& productions, Graph* graph)
+Graph buildGraphWithArcsFromSubstitutionPart(
+            const Productions& productions)
 {
-    graph->clear();
-    graph->reserve(ALPHABET_SIZE);
-    std::vector<std::set<size_t> > tempGraph(ALPHABET_SIZE);
+    Graph graph(ALPHABET_SIZE);
     for (size_t index = 0; index < productions.size(); ++index) {
         size_t to = nonTerminalId(productions[index].nonTerminal);
         const std::string& output = productions[index].output;
@@ -118,25 +114,23 @@ void buildGraphWithArcsFromSubstitutionPart(
                                      ++outputIndex) {
             if (!isTerminal(output[outputIndex])) {
                 size_t from = nonTerminalId(output[outputIndex]);
-                tempGraph[from].insert(to);
+                graph[from].push_back(to);
             }
         }
     }
     for (size_t terminal = 0; terminal < ALPHABET_SIZE; ++terminal) {
-        const std::set<size_t>& adjacent = tempGraph[terminal];
-        graph->push_back(
-                    std::vector<size_t>(adjacent.begin(), adjacent.end()));
+        std::vector<size_t>& adjacent = graph[terminal];
+        std::sort(adjacent.begin(), adjacent.end());
+        adjacent.erase(std::unique(adjacent.begin(), adjacent.end()),
+                       adjacent.end());
     }
+    return graph;
 }
 
 size_t nonTerminalsCount(const std::string& word)
 {
-    return word.size() - std::count_if(word.begin(), word.end(), isTerminal);
-}
-
-size_t length(const std::string& word)
-{
-    return word.length();
+    return std::count_if(word.begin(), word.end(),
+                         std::not1(std::ptr_fun(isTerminal)));
 }
 
 bool hasOnlyTerminalsOrIsEpsilon(const std::string& word)
@@ -151,21 +145,21 @@ Flags findSpecificNonTerminals(
         const Productions& productions, StartVertexChecker check,
         LengthCounter count)
 {
-    const size_t numProds = productions.size();
-    std::vector<size_t> outputReduction(numProds);
+    const size_t numProductions = productions.size();
+    std::vector<size_t> outputReduction(numProductions);
     for (size_t index = 0; index < productions.size(); ++index) {
         const std::string& output = productions[index].output;
         outputReduction[index] = count(output);
     }
     std::queue<size_t> specificNonTerminals;
-    Flags processed(ALPHABET_SIZE);
+    Flags isProcessed(ALPHABET_SIZE);
     for (size_t index = 0; index < productions.size(); ++index) {
         const Production& production = productions[index];
         if (check(production.output)) {
             size_t nonTerminal = nonTerminalId(production.nonTerminal);
-            if (!processed[nonTerminal]) {
+            if (!isProcessed[nonTerminal]) {
                 specificNonTerminals.push(nonTerminal);
-                processed[nonTerminal] = true;
+                isProcessed[nonTerminal] = true;
             }
         }
     }
@@ -174,7 +168,7 @@ Flags findSpecificNonTerminals(
         size_t nonTerminal = specificNonTerminals.front();
         specificNonTerminals.pop();
         result.at(nonTerminal) = true;
-        for (size_t index = 0; index < numProds; ++index) {
+        for (size_t index = 0; index < numProductions; ++index) {
             const Production& production = productions[index];
             const std::string& output = production.output;
             if (isEpsilon(output)) {
@@ -189,9 +183,9 @@ Flags findSpecificNonTerminals(
             }
             if (outputReduction[index] == 0) {
                 size_t nonTerminal = nonTerminalId(production.nonTerminal);
-                if (!processed[nonTerminal]) {
+                if (!isProcessed[nonTerminal]) {
                     specificNonTerminals.push(nonTerminal);
-                    processed[nonTerminal] = true;
+                    isProcessed[nonTerminal] = true;
                 }
             }
         }
@@ -210,7 +204,7 @@ Flags findEmptyReachableNonTerminals(const Productions& productions)
 {
     return findSpecificNonTerminals(productions,
                                     isEpsilon,
-                                    length);
+                                    std::mem_fun_ref(&std::string::length));
 }
 
 Productions leaveSignificantProductions(const Flags& terminated,
@@ -225,7 +219,7 @@ Productions leaveSignificantProductions(const Flags& terminated,
         bool isFake = false;
         for (size_t i = 0; i < output.size(); ++i) {
             if (!isTerminal(output[i]) &&
-                !terminated.at(nonTerminalId(output[i]))) {
+                                !terminated.at(nonTerminalId(output[i]))) {
                 isFake = true;
                 break;
             }
@@ -240,14 +234,14 @@ Productions leaveSignificantProductions(const Flags& terminated,
 void findAllStartTerminals(const Productions& productions, std::string* answer)
 {
     Flags canBeEmpty = findEmptyReachableNonTerminals(productions);
-    Flags terminated = findTerminatedNonTerminals(productions);
+    Flags isTerminated = findTerminatedNonTerminals(productions);
     Productions significantProductions =
-                leaveSignificantProductions(terminated, productions);
+                    leaveSignificantProductions(isTerminated, productions);
 
     leaveSignificantOutputLetters(canBeEmpty, &significantProductions);
 
-    Graph graph;
-    buildGraphWithArcsFromSubstitutionPart(significantProductions, &graph);
+    Graph graph =
+            buildGraphWithArcsFromSubstitutionPart(significantProductions);
 
     Flags isInQueue(ALPHABET_SIZE);
     std::vector<Flags> canStartWith(ALPHABET_SIZE, Flags(ALPHABET_SIZE));
@@ -258,8 +252,7 @@ void findAllStartTerminals(const Productions& productions, std::string* answer)
         const Production& production = significantProductions[index];
         const std::string& output = production.output;
         char lastLetter = output.at(output.size() - 1);
-        if (!isEpsilon(output) && isTerminal(lastLetter) &&
-                    terminated[nonTerminalId(production.nonTerminal)]) {
+        if (!isEpsilon(output) && isTerminal(lastLetter)) {
             size_t nonTerminal = nonTerminalId(production.nonTerminal);
             canStartWith.at(nonTerminal).at(terminalId(lastLetter)) = true;
             if (!isInQueue[nonTerminal]) {
@@ -278,9 +271,6 @@ void findAllStartTerminals(const Productions& productions, std::string* answer)
             if (canStartWith[nonTerminal][alph]) {
                 for (size_t index = 0; index < adjacent.size(); ++index) {
                     size_t toNonTerminal = adjacent[index];
-                    if (!terminated[toNonTerminal]) {
-                        continue;
-                    }
                     if (!canStartWith[toNonTerminal][alph]) {
                         canStartWith[toNonTerminal][alph] = true;
                         if (!isInQueue[toNonTerminal]) {
@@ -302,18 +292,13 @@ void findAllStartTerminals(const Productions& productions, std::string* answer)
     }
 }
 
-void solve(const Productions& productions, std::string* answer)
-{
-    findAllStartTerminals(productions, answer);
-}
-
 int main()
 {
     Productions productions;
     readData(&productions);
 
     std::string answer;
-    solve(productions, &answer);
+    findAllStartTerminals(productions, &answer);
 
     outData(answer);
     return 0;
