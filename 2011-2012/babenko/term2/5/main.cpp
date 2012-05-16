@@ -186,6 +186,7 @@ void outData(const std::string& text)
     std::cout << text << std::endl;
 }
 
+#ifdef DEBUG
 void testRandomString()
 {
     for (size_t it = 0; it < 100; ++it) {
@@ -200,6 +201,8 @@ void testRandomString()
     }
     exit(0);
 }
+
+#endif
 
 int main()
 {
