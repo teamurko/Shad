@@ -23,9 +23,10 @@ typedef std::vector<size_t> Ids;
 
 size_t charId(char c)
 {
-    REQUIRE('a' <= c && c <= 'z',
-            "Cannot get id of unknown char " << c);
     static const char MIN_CHAR = 'a';
+    static const char MAX_CHAR = 'z';
+    REQUIRE(MIN_CHAR <= c && c <= MAX_CHAR,
+            "Cannot get id of unknown char " << c);
     return c - MIN_CHAR;
 }
 
@@ -53,7 +54,7 @@ Ids countSort(const Ids& classId, const Ids& positions)
     }
 
     std::rotate(count.begin(), count.begin() + size - 1, count.end());
-    count.at(0) = 0;
+    count[0] = 0;
     std::partial_sum(count.begin(), count.end(), count.begin());
 
     Ids result(size);
@@ -73,27 +74,27 @@ Ids range(size_t size)
 }
 
 size_t rebuildClassIds(const Ids& classId, const Ids& positions,
-                       size_t step, Ids* result)
+                       size_t length, Ids* result)
 {
     const size_t size = positions.size();
     REQUIRE(size == classId.size(), "Ids args should have the same size");
 
-    const size_t length = static_cast<size_t>(1) << step;
     result->assign(size, 0);
     size_t numEqClasses = 0;
 
-    for (size_t index = 0; index < size; ++index) {
-        if (index > 0) {
-            size_t currentId = positions.at(index);
-            size_t shiftedCurrentId = (currentId + length / 2) % size;
-            size_t previousId = positions.at(index - 1);
-            size_t shiftedPreviousId = (previousId + length / 2) % size;
-            if (classId.at(currentId) > classId.at(previousId) ||
-                    (classId[currentId] == classId[previousId] &&
-                    classId.at(shiftedCurrentId) >
-                                        classId.at(shiftedPreviousId))) {
-                ++numEqClasses;
-            }
+    if (size > 0) {
+        result->at(positions.at(0)) = numEqClasses;
+    }
+    for (size_t index = 1; index < size; ++index) {
+        size_t currentId = positions.at(index);
+        size_t shiftedCurrentId = (currentId + length / 2) % size;
+        size_t previousId = positions.at(index - 1);
+        size_t shiftedPreviousId = (previousId + length / 2) % size;
+        if (classId.at(currentId) > classId.at(previousId) ||
+                (classId[currentId] == classId[previousId] &&
+                classId.at(shiftedCurrentId) >
+                                    classId.at(shiftedPreviousId))) {
+            ++numEqClasses;
         }
         result->at(positions.at(index)) = numEqClasses;
     }
@@ -120,11 +121,9 @@ Ids buildSuffixArray(const Ids& array)
     Ids positions = countSort(normalized(array), range(size));
     Ids classId;
     size_t numEqClasses =
-                rebuildClassIds(normalized(array), positions, 0, &classId);
+                rebuildClassIds(normalized(array), positions, 1, &classId);
 
-    static const size_t ONE = 1;
-    for (size_t lengthIndex = 1; (ONE << lengthIndex) < size; ++lengthIndex) {
-        size_t length = 1 << lengthIndex;
+    for (size_t length = 2; length < size; length <<= 1) {
         for (size_t index = 0; index < size; ++index) {
             positions.at(index) =
                             (positions.at(index) + size - length / 2) % size;
@@ -133,12 +132,13 @@ Ids buildSuffixArray(const Ids& array)
 
         Ids nextClassId;
         numEqClasses =
-            rebuildClassIds(classId, positions, lengthIndex, &nextClassId);
+                rebuildClassIds(classId, positions, length, &nextClassId);
         classId = nextClassId;
     }
     return positions;
 }
 
+#ifdef DEBUG
 bool isConsistent(const Ids& array, const Ids& positions)
 {
     const size_t size = array.size();
@@ -156,16 +156,14 @@ bool isConsistent(const Ids& array, const Ids& positions)
     return true;
 }
 
+#endif
+
 std::string burrowsWheelerTransform(const std::string& text)
 {
     size_t size = text.size();
-    Ids sequence(size);
-    for (size_t index = 0; index < size; ++index) {
-        sequence[index] = charId(text[index]);
-    }
-    Ids suffixArray = buildSuffixArray(sequence);
+    Ids suffixArray = buildSuffixArray(Ids(text.begin(), text.end()));
 #ifdef DEBUG
-    REQUIRE(check(sequence, suffixArray), Incorrect suffix array);
+    REQUIRE(isConsistent(sequence, suffixArray), "Incorrect suffix array");
 #endif
     std::string result;
     for (size_t index = 0; index < size; ++index) {
